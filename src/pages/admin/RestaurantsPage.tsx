@@ -1,161 +1,426 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import {
-  Plus,
-  Search,
-  MoreHorizontal,
-  Eye,
-  Edit,
-  Trash2,
-  MapPin,
-  Star,
-} from "lucide-react";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Plus, Search, Filter, Eye, Edit, ChevronDown } from "lucide-react";
 
 interface Restaurant {
-  id: string;
+  id: number;
   name: string;
-  cuisine: string;
-  location: string;
-  rating: number;
-  orders: number;
-  status: "active" | "inactive" | "pending";
-  image: string;
+  owner: string;
+  address: string;
+  status: "pending" | "approved" | "rejected";
+  isFeatured: boolean;
+  created: string;
 }
 
 const mockRestaurants: Restaurant[] = [
-  { id: "1", name: "Pizza Palace", cuisine: "Italian", location: "Downtown", rating: 4.8, orders: 1234, status: "active", image: "🍕" },
-  { id: "2", name: "Burger Hub", cuisine: "American", location: "West Side", rating: 4.5, orders: 987, status: "active", image: "🍔" },
-  { id: "3", name: "Sushi Express", cuisine: "Japanese", location: "City Center", rating: 4.9, orders: 756, status: "active", image: "🍣" },
-  { id: "4", name: "Taco Town", cuisine: "Mexican", location: "East District", rating: 4.3, orders: 543, status: "inactive", image: "🌮" },
-  { id: "5", name: "Curry House", cuisine: "Indian", location: "North Area", rating: 4.7, orders: 432, status: "active", image: "🍛" },
-  { id: "6", name: "Noodle Bar", cuisine: "Chinese", location: "South Side", rating: 4.4, orders: 321, status: "pending", image: "🍜" },
+  { 
+    id: 1, 
+    name: "Tawfir Restaurant", 
+    owner: "Restaurant Owner", 
+    address: "123 Test Street", 
+    status: "approved", 
+    isFeatured: true, 
+    created: "29/11/2025" 
+  },
 ];
 
 const statusConfig = {
-  active: { label: "Active", className: "bg-success/10 text-success border-success/20" },
-  inactive: { label: "Inactive", className: "bg-muted text-muted-foreground border-border" },
-  pending: { label: "Pending", className: "bg-warning/10 text-warning border-warning/20" },
+  pending: { 
+    label: "PENDING", 
+    className: "bg-warning/10 text-warning border-0 px-3 py-1.5" 
+  },
+  approved: { 
+    label: "APPROVED", 
+    className: "bg-primary text-primary-foreground border-0 px-3 py-1.5" 
+  },
+  rejected: { 
+    label: "REJECTED", 
+    className: "bg-destructive/10 text-destructive border-0 px-3 py-1.5" 
+  },
 };
 
 export default function RestaurantsPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [featuredFilter, setFeaturedFilter] = useState<string>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  const filteredRestaurants = mockRestaurants.filter((restaurant) =>
-    restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    restaurant.cuisine.toLowerCase().includes(searchQuery.toLowerCase())
+  const activeFiltersCount = [
+    statusFilter !== "all",
+    featuredFilter !== "all",
+  ].filter(Boolean).length;
+
+  const filteredRestaurants = mockRestaurants.filter((restaurant) => {
+    const matchesSearch = searchQuery === "" || 
+      restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      restaurant.owner.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      restaurant.address.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || restaurant.status === statusFilter;
+    const matchesFeatured = featuredFilter === "all" || 
+      (featuredFilter === "featured" && restaurant.isFeatured) ||
+      (featuredFilter === "not-featured" && !restaurant.isFeatured);
+    
+    return matchesSearch && matchesStatus && matchesFeatured;
+  });
+
+  const totalPages = Math.ceil(filteredRestaurants.length / itemsPerPage);
+  const paginatedRestaurants = filteredRestaurants.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
+
+  const resetFilters = () => {
+    setStatusFilter("all");
+    setFeaturedFilter("all");
+  };
 
   return (
     <DashboardLayout portalType="admin">
       <div className="space-y-6">
+        {/* Breadcrumb */}
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/admin/restaurants">Restaurants</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>List</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+
         {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-in">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Restaurants</h1>
             <p className="mt-1 text-muted-foreground">
               Manage all restaurants on your platform
             </p>
           </div>
-          <Button className="w-full sm:w-auto">
-            <Plus className="h-4 w-4" />
-            Add Restaurant
+          <Button className="w-full sm:w-auto" asChild>
+            <Link to="/admin/restaurants/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New Restaurant
+            </Link>
           </Button>
         </div>
 
-        {/* Search and Filters */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center animate-slide-up">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search restaurants..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">All Status</Button>
-            <Button variant="outline" size="sm">All Cuisines</Button>
-          </div>
-        </div>
-
-        {/* Restaurants Grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredRestaurants.map((restaurant, index) => {
-            const status = statusConfig[restaurant.status];
-            return (
-              <div
-                key={restaurant.id}
-                className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 animate-scale-in"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-2xl">
-                      {restaurant.image}
+        {/* Restaurants Table Card */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          {/* Search and Filter Bar */}
+          <div className="flex items-center gap-4 p-4 border-b border-border">
+            <div className="flex-1" />
+            <div className="relative flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 w-64"
+                />
+              </div>
+              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="relative">
+                    <Filter className="h-4 w-4" />
+                    {activeFiltersCount > 0 && (
+                      <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-foreground">Filters</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetFilters}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Status
+                      </label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="focus:ring-primary">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem 
+                            value="all"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            All
+                          </SelectItem>
+                          <SelectItem 
+                            value="pending"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            Pending
+                          </SelectItem>
+                          <SelectItem 
+                            value="approved"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            Approved
+                          </SelectItem>
+                          <SelectItem 
+                            value="rejected"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            Rejected
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
-                      <h3 className="font-semibold text-foreground">{restaurant.name}</h3>
-                      <p className="text-sm text-muted-foreground">{restaurant.cuisine}</p>
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Featured
+                      </label>
+                      <Select value={featuredFilter} onValueChange={setFeaturedFilter}>
+                        <SelectTrigger className="focus:ring-primary">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem 
+                            value="all"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            All
+                          </SelectItem>
+                          <SelectItem 
+                            value="featured"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            Featured
+                          </SelectItem>
+                          <SelectItem 
+                            value="not-featured"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            Not Featured
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
 
-                <div className="mt-4 flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {restaurant.location}
-                  </div>
-                  <div className="flex items-center gap-1 text-warning">
-                    <Star className="h-3.5 w-3.5 fill-current" />
-                    {restaurant.rating}
-                  </div>
-                </div>
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    ID <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Name <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Owner <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Address
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Status <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Featured <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Created <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {paginatedRestaurants.length > 0 ? (
+                  paginatedRestaurants.map((restaurant, index) => {
+                    const status = statusConfig[restaurant.status];
+                    return (
+                      <tr 
+                        key={`${restaurant.id}-${searchQuery}-${statusFilter}-${featuredFilter}`} 
+                        className="transition-all duration-300 hover:bg-muted/30 animate-fade-in"
+                        style={{ animationDelay: `${index * 30}ms` }}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                          {restaurant.id}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">
+                          {restaurant.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                          {restaurant.owner}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-foreground max-w-xs">
+                          <p className="truncate">{restaurant.address}</p>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge className={cn("font-medium text-xs uppercase tracking-wide", status.className)}>
+                            {status.label}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge 
+                            className={cn(
+                              "font-medium text-xs uppercase tracking-wide px-3 py-1.5",
+                              restaurant.isFeatured 
+                                ? "bg-primary text-primary-foreground border-0" 
+                                : "bg-muted text-muted-foreground border-0"
+                            )}
+                          >
+                            {restaurant.isFeatured ? "YES" : "NO"}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                          {restaurant.created}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                              asChild
+                            >
+                              <Link to={`/admin/restaurants/${restaurant.id}`}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View
+                              </Link>
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                              asChild
+                            >
+                              <Link to={`/admin/restaurants/${restaurant.id}/edit`}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </Link>
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-sm text-muted-foreground">
+                      No restaurants found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
 
-                <div className="mt-4 flex items-center justify-between">
-                  <Badge variant="outline" className={cn("font-medium", status.className)}>
-                    {status.label}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {restaurant.orders.toLocaleString()} orders
-                  </span>
-                </div>
-
-                <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-primary opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          {/* Pagination */}
+          <div className="flex items-center justify-between p-4 border-t border-border">
+            <div className="text-sm text-muted-foreground">
+              Showing {paginatedRestaurants.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRestaurants.length)} of {filteredRestaurants.length} {filteredRestaurants.length === 1 ? 'result' : 'results'}
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Per page</span>
+                <Select value={itemsPerPage.toString()} onValueChange={() => {}}>
+                  <SelectTrigger className="w-20 focus:ring-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem 
+                      value="10"
+                      className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                    >
+                      10
+                    </SelectItem>
+                    <SelectItem 
+                      value="20"
+                      className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                    >
+                      20
+                    </SelectItem>
+                    <SelectItem 
+                      value="50"
+                      className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                    >
+                      50
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            );
-          })}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className={cn(
+                      "min-w-[2.5rem]",
+                      currentPage === page && "bg-primary text-primary-foreground"
+                    )}
+                  >
+                    {page}
+                  </Button>
+                ))}
+                {currentPage < totalPages && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    &gt;
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </DashboardLayout>

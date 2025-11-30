@@ -1,206 +1,396 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { Clock, Check, ChefHat, Truck, RefreshCw } from "lucide-react";
+import { Search, Filter, Eye, ChevronDown, Calendar } from "lucide-react";
 
 interface Order {
-  id: string;
+  id: number;
   customer: string;
-  phone: string;
-  items: { name: string; quantity: number; price: string }[];
-  total: string;
-  status: "pending" | "confirmed" | "preparing" | "ready" | "delivered";
-  type: "delivery" | "pickup";
-  time: string;
-  address?: string;
+  totalPrice: number;
+  status: "incoming" | "ready" | "completed";
+  date: string;
 }
 
 const mockOrders: Order[] = [
-  {
-    id: "ORD-101",
-    customer: "Ahmed Ali",
-    phone: "+1 234 567 8901",
-    items: [
-      { name: "Margherita Pizza", quantity: 2, price: "$37.98" },
-      { name: "Garlic Bread", quantity: 1, price: "$6.99" },
-    ],
-    total: "$44.97",
-    status: "pending",
-    type: "delivery",
-    time: "2 min ago",
-    address: "123 Main St, Apt 4B",
-  },
-  {
-    id: "ORD-102",
-    customer: "Sara Khan",
-    phone: "+1 234 567 8902",
-    items: [{ name: "Pepperoni Pizza", quantity: 1, price: "$20.99" }],
-    total: "$20.99",
-    status: "preparing",
-    type: "pickup",
-    time: "8 min ago",
-  },
-  {
-    id: "ORD-103",
-    customer: "Mohammed Hassan",
-    phone: "+1 234 567 8903",
-    items: [
-      { name: "Hawaiian Pizza", quantity: 1, price: "$19.99" },
-      { name: "Caesar Salad", quantity: 1, price: "$12.99" },
-      { name: "Tiramisu", quantity: 2, price: "$17.98" },
-    ],
-    total: "$50.96",
-    status: "ready",
-    type: "delivery",
-    time: "18 min ago",
-    address: "456 Oak Ave",
-  },
-  {
-    id: "ORD-104",
-    customer: "Fatima Noor",
-    phone: "+1 234 567 8904",
-    items: [{ name: "Veggie Supreme", quantity: 1, price: "$21.99" }],
-    total: "$21.99",
-    status: "confirmed",
-    type: "pickup",
-    time: "12 min ago",
-  },
+  { id: 6, customer: "Normal User", totalPrice: 12.50, status: "incoming", date: "29/11/2025 21:45" },
+  { id: 18, customer: "Normal User", totalPrice: 25.00, status: "completed", date: "29/11/2025 20:30" },
+  { id: 10, customer: "Normal User", totalPrice: 35.50, status: "ready", date: "29/11/2025 19:15" },
+  { id: 8, customer: "Normal User", totalPrice: 18.75, status: "ready", date: "29/11/2025 18:00" },
+  { id: 22, customer: "Normal User", totalPrice: 42.00, status: "completed", date: "29/11/2025 17:30" },
+  { id: 5, customer: "Normal User", totalPrice: 15.25, status: "incoming", date: "29/11/2025 16:45" },
+  { id: 3, customer: "Normal User", totalPrice: 28.50, status: "incoming", date: "29/11/2025 15:20" },
+  { id: 1, customer: "Normal User", totalPrice: 20.00, status: "incoming", date: "29/11/2025 14:10" },
+  { id: 15, customer: "Normal User", totalPrice: 87.50, status: "completed", date: "29/11/2025 13:00" },
+  { id: 19, customer: "Normal User", totalPrice: 55.75, status: "completed", date: "29/11/2025 12:30" },
+  { id: 2, customer: "Normal User", totalPrice: 30.00, status: "completed", date: "29/11/2025 11:15" },
+  { id: 4, customer: "Normal User", totalPrice: 22.50, status: "completed", date: "29/11/2025 10:00" },
 ];
 
 const statusConfig = {
-  pending: { label: "New Order", className: "bg-warning/10 text-warning border-warning/20", icon: Clock },
-  confirmed: { label: "Confirmed", className: "bg-info/10 text-info border-info/20", icon: Check },
-  preparing: { label: "Preparing", className: "bg-primary/10 text-primary border-primary/20", icon: ChefHat },
-  ready: { label: "Ready", className: "bg-success/10 text-success border-success/20", icon: Truck },
-  delivered: { label: "Delivered", className: "bg-muted text-muted-foreground border-border", icon: Check },
+  incoming: { 
+    label: "INCOMING", 
+    className: "bg-warning text-warning-foreground border-0 px-3 py-1.5 uppercase tracking-wide" 
+  },
+  ready: { 
+    label: "READY", 
+    className: "bg-secondary text-secondary-foreground border-0 px-3 py-1.5 uppercase tracking-wide" 
+  },
+  completed: { 
+    label: "COMPLETED", 
+    className: "bg-primary text-primary-foreground border-0 px-3 py-1.5 uppercase tracking-wide" 
+  },
 };
 
-const statusFlow = ["pending", "confirmed", "preparing", "ready", "delivered"] as const;
-
 export default function RestaurantOrdersPage() {
-  const [orders, setOrders] = useState(mockOrders);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [orderIdFilter, setOrderIdFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [fromDate, setFromDate] = useState<Date | undefined>();
+  const [untilDate, setUntilDate] = useState<Date | undefined>();
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  const updateOrderStatus = (orderId: string) => {
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (order.id === orderId) {
-          const currentIndex = statusFlow.indexOf(order.status);
-          if (currentIndex < statusFlow.length - 1) {
-            return { ...order, status: statusFlow[currentIndex + 1] };
-          }
-        }
-        return order;
-      })
-    );
-  };
+  const activeFiltersCount = [
+    orderIdFilter,
+    statusFilter !== "all",
+    fromDate,
+    untilDate,
+  ].filter(Boolean).length;
 
-  const getNextStatusLabel = (currentStatus: string) => {
-    const index = statusFlow.indexOf(currentStatus as typeof statusFlow[number]);
-    if (index < statusFlow.length - 1) {
-      return statusConfig[statusFlow[index + 1]].label;
-    }
-    return null;
+  const filteredOrders = mockOrders.filter((order) => {
+    const matchesSearch = searchQuery === "" || 
+      order.id.toString().includes(searchQuery) ||
+      order.customer.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesOrderId = !orderIdFilter || order.id.toString() === orderIdFilter;
+    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+    
+    return matchesSearch && matchesOrderId && matchesStatus;
+  });
+
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const resetFilters = () => {
+    setOrderIdFilter("");
+    setStatusFilter("all");
+    setFromDate(undefined);
+    setUntilDate(undefined);
   };
 
   return (
     <DashboardLayout portalType="restaurant">
       <div className="space-y-6">
+        {/* Breadcrumb */}
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/restaurant/orders">Orders</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>List</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+
         {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-in">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Orders</h1>
-            <p className="mt-1 text-muted-foreground">
-              Manage and track incoming orders
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-success"></span>
-            </span>
-            <span className="text-sm text-muted-foreground">Live Updates</span>
-            <Button variant="outline" size="sm" className="ml-2">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Orders</h1>
+          <p className="mt-1 text-muted-foreground">
+            View and manage all orders for your restaurant
+          </p>
         </div>
 
-        {/* Orders Grid */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {orders.map((order, index) => {
-            const status = statusConfig[order.status];
-            const StatusIcon = status.icon;
-            const nextStatus = getNextStatusLabel(order.status);
-
-            return (
-              <div
-                key={order.id}
-                className="rounded-xl border border-border bg-card overflow-hidden animate-scale-in"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-border bg-muted/30 px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", status.className)}>
-                      <StatusIcon className="h-4 w-4" />
+        {/* Orders Table Card */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          {/* Search and Filter Bar */}
+          <div className="flex items-center gap-4 p-4 border-b border-border">
+            <div className="flex-1" />
+            <div className="relative flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 w-64"
+                />
+              </div>
+              <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="relative">
+                    <Filter className="h-4 w-4" />
+                    {activeFiltersCount > 0 && (
+                      <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+                        {activeFiltersCount}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-foreground">Filters</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetFilters}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Order #
+                      </label>
+                      <Input
+                        placeholder="Enter order number"
+                        value={orderIdFilter}
+                        onChange={(e) => setOrderIdFilter(e.target.value)}
+                      />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-foreground">{order.id}</p>
-                      <p className="text-xs text-muted-foreground">{order.time}</p>
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Status
+                      </label>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="focus:ring-primary">
+                          <SelectValue placeholder="All" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem 
+                            value="all"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            All
+                          </SelectItem>
+                          <SelectItem 
+                            value="incoming"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            Incoming
+                          </SelectItem>
+                          <SelectItem 
+                            value="ready"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            Ready
+                          </SelectItem>
+                          <SelectItem 
+                            value="completed"
+                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                          >
+                            Completed
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn("font-medium", status.className)}>
-                      {status.label}
-                    </Badge>
-                    <Badge variant="outline">
-                      {order.type === "delivery" ? "🚗 Delivery" : "🏪 Pickup"}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-4 space-y-4">
-                  {/* Customer Info */}
-                  <div>
-                    <p className="font-medium text-foreground">{order.customer}</p>
-                    <p className="text-sm text-muted-foreground">{order.phone}</p>
-                    {order.address && (
-                      <p className="text-sm text-muted-foreground mt-1">📍 {order.address}</p>
-                    )}
-                  </div>
-
-                  {/* Items */}
-                  <div className="space-y-2">
-                    {order.items.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between text-sm">
-                        <span className="text-foreground">
-                          {item.quantity}x {item.name}
-                        </span>
-                        <span className="text-muted-foreground">{item.price}</span>
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        From Date
+                      </label>
+                      <div className="relative">
+                        <Input
+                          type="date"
+                          value={fromDate ? fromDate.toISOString().split('T')[0] : ""}
+                          onChange={(e) => setFromDate(e.target.value ? new Date(e.target.value) : undefined)}
+                          className="pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                        />
+                        <Calendar className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary pointer-events-none z-10" />
                       </div>
-                    ))}
-                    <div className="flex items-center justify-between pt-2 border-t border-border">
-                      <span className="font-semibold text-foreground">Total</span>
-                      <span className="font-bold text-primary">{order.total}</span>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-2 block">
+                        Until Date
+                      </label>
+                      <div className="relative">
+                        <Input
+                          type="date"
+                          value={untilDate ? untilDate.toISOString().split('T')[0] : ""}
+                          onChange={(e) => setUntilDate(e.target.value ? new Date(e.target.value) : undefined)}
+                          className="pr-10 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                        />
+                        <Calendar className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary pointer-events-none z-10" />
+                      </div>
                     </div>
                   </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
 
-                  {/* Action */}
-                  {nextStatus && (
-                    <Button
-                      className="w-full"
-                      onClick={() => updateOrderStatus(order.id)}
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Order # <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Customer
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Total price <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Status <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground">
+                    Date <ChevronDown className="inline h-3 w-3 ml-1" />
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {paginatedOrders.length > 0 ? (
+                  paginatedOrders.map((order, index) => {
+                    const status = statusConfig[order.status];
+                    return (
+                      <tr 
+                        key={`${order.id}-${searchQuery}-${statusFilter}-${orderIdFilter}`} 
+                        className="transition-all duration-300 hover:bg-muted/30 animate-fade-in"
+                        style={{ animationDelay: `${index * 30}ms` }}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                          {order.id}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                          {order.customer}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                          ${order.totalPrice.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge className={cn("font-medium text-xs uppercase tracking-wide", status.className)}>
+                            {status.label}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
+                          {order.date}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                            asChild
+                          >
+                            <Link to={`/restaurant/orders/${order.id}`}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View
+                            </Link>
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-muted-foreground">
+                      No orders found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between p-4 border-t border-border">
+            <div className="text-sm text-muted-foreground">
+              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredOrders.length)} of {filteredOrders.length} results
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Per page</span>
+                <Select value={itemsPerPage.toString()} onValueChange={() => {}}>
+                  <SelectTrigger className="w-20 focus:ring-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem 
+                      value="10"
+                      className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
                     >
-                      Mark as {nextStatus}
-                    </Button>
-                  )}
-                </div>
+                      10
+                    </SelectItem>
+                    <SelectItem 
+                      value="20"
+                      className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                    >
+                      20
+                    </SelectItem>
+                    <SelectItem 
+                      value="50"
+                      className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                    >
+                      50
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            );
-          })}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCurrentPage(page)}
+                    className={cn(
+                      "min-w-[2.5rem]",
+                      currentPage === page && "bg-primary text-primary-foreground"
+                    )}
+                  >
+                    {page}
+                  </Button>
+                ))}
+                {currentPage < totalPages && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    &gt;
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </DashboardLayout>

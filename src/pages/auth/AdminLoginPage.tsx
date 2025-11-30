@@ -3,9 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Mail, Lock, Home } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Eye, EyeOff, Mail, Lock, Shield, Home } from "lucide-react";
 
-export default function LoginPage() {
+export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,8 +14,8 @@ export default function LoginPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to restaurant dashboard
-    navigate("/restaurant");
+    // Navigate to admin dashboard
+    navigate("/admin");
   };
 
   return (
@@ -38,9 +39,15 @@ export default function LoginPage() {
               <img src="/logo.png" alt="Tawfir Logo" className="h-12 w-auto" />
               <span className="text-2xl font-bold text-foreground">Tawfir</span>
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Welcome back</h1>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Badge className="bg-primary text-primary-foreground border-0 px-3 py-1">
+                <Shield className="h-3.5 w-3.5 mr-1.5" />
+                ADMIN ACCESS
+              </Badge>
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Admin Portal</h1>
             <p className="mt-2 text-muted-foreground">
-              Sign in to your account to continue
+              Sign in to access the admin dashboard
             </p>
           </div>
 
@@ -66,7 +73,7 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
                   <Link
-                    to="/forgot-password"
+                    to="/admin/forgot-password"
                     className="text-sm text-primary hover:underline"
                   >
                     Forgot password?
@@ -98,9 +105,16 @@ export default function LoginPage() {
             </div>
 
             <Button type="submit" className="w-full" size="lg">
-              Sign in
+              Sign in to Admin Portal
             </Button>
           </form>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Restaurant login?{" "}
+            <Link to="/login" className="text-primary font-medium hover:underline">
+              Go to Restaurant Portal
+            </Link>
+          </p>
         </div>
       </div>
 
@@ -110,26 +124,21 @@ export default function LoginPage() {
           <div className="mb-8 inline-flex h-20 w-20 items-center justify-center rounded-2xl bg-white p-2">
             <img src="/logo.png" alt="Tawfir Logo" className="h-full w-auto object-contain" />
           </div>
+          <div className="mb-4">
+            <Badge className="bg-primary text-primary-foreground border-0 px-4 py-1.5 text-sm mb-4">
+              <Shield className="h-4 w-4 mr-2" />
+              ADMINISTRATIVE ACCESS
+            </Badge>
+          </div>
           <h2 className="text-3xl font-bold text-white mb-4">
-            Food Surplus Made Simple
+            Platform Management Dashboard
           </h2>
           <p className="text-lg text-white/70">
-            Save food and earn money doing it. All powered by intelligent AI insights and real-time tracking.
+            Manage restaurants, monitor orders, track analytics, and oversee platform operations from a centralized admin interface.
           </p>
-          <div className="mt-8 flex justify-center gap-8">
-            {[
-              { value: "500+", label: "Restaurants" },
-              { value: "50K+", label: "Orders/Day" },
-              { value: "4.9", label: "Rating" },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <p className="text-2xl font-bold text-primary">{stat.value}</p>
-                <p className="text-sm text-white/60">{stat.label}</p>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
   );
 }
+

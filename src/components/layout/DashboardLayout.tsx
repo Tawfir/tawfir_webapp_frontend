@@ -1,19 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   LayoutDashboard,
   Store,
   ShoppingCart,
-  Users,
-  Settings,
+  Tag,
+  DollarSign,
   LogOut,
   Menu,
   X,
   ChefHat,
   UtensilsCrossed,
+  User,
+  Moon,
+  Sun,
+  ChevronUp,
+  Package,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 interface NavItem {
   title: string;
@@ -21,19 +38,40 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+interface NavSection {
+  title?: string;
+  items: NavItem[];
+}
+
 const adminNavItems: NavItem[] = [
   { title: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { title: "Order History", href: "/admin/orders", icon: ShoppingCart },
   { title: "Restaurants", href: "/admin/restaurants", icon: Store },
-  { title: "Orders", href: "/admin/orders", icon: ShoppingCart },
-  { title: "Users", href: "/admin/users", icon: Users },
-  { title: "Settings", href: "/admin/settings", icon: Settings },
+  { title: "Food Categories", href: "/admin/categories", icon: Tag },
+  { title: "Withdrawal Requests", href: "/admin/withdrawals", icon: DollarSign },
 ];
 
-const restaurantNavItems: NavItem[] = [
-  { title: "Dashboard", href: "/restaurant", icon: LayoutDashboard },
-  { title: "Menu", href: "/restaurant/menu", icon: UtensilsCrossed },
-  { title: "Orders", href: "/restaurant/orders", icon: ShoppingCart },
-  { title: "Settings", href: "/restaurant/settings", icon: Settings },
+const restaurantNavSections: NavSection[] = [
+  {
+    items: [{ title: "Dashboard", href: "/restaurant", icon: LayoutDashboard }],
+  },
+  {
+    title: "Menu",
+    items: [{ title: "Menu", href: "/restaurant/menu", icon: UtensilsCrossed }],
+  },
+  {
+    title: "Orders",
+    items: [
+      { title: "Order History", href: "/restaurant/orders", icon: ShoppingCart },
+      { title: "Today's Orders", href: "/restaurant/orders/today", icon: Package },
+    ],
+  },
+  {
+    title: "Restaurant Management",
+    items: [
+      { title: "Restaurant Profile", href: "/restaurant/profile", icon: Store },
+    ],
+  },
 ];
 
 interface DashboardLayoutProps {
@@ -43,11 +81,74 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, portalType }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  
+  // Load persisted section state from localStorage
+  const getInitialSections = (): Record<string, boolean> => {
+    const defaults = {
+      Menu: true,
+      Orders: true,
+      "Restaurant Management": true,
+    };
+    
+    if (typeof window === "undefined") {
+      return defaults;
+    }
+    
+    const stored = localStorage.getItem(`sidebar-sections-${portalType}`);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Merge with defaults to ensure all sections are present
+        return { ...defaults, ...parsed };
+      } catch {
+        return defaults;
+      }
+    }
+    return defaults;
+  };
+
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(getInitialSections);
   const location = useLocation();
   
-  const navItems = portalType === "admin" ? adminNavItems : restaurantNavItems;
-  const portalTitle = portalType === "admin" ? "Tawfir Admin" : "Restaurant Portal";
+  const portalTitle = portalType === "admin" ? "Tawfir Admin Portal" : "Restaurant Portal";
   const PortalIcon = portalType === "admin" ? ChefHat : Store;
+
+  // Persist section state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`sidebar-sections-${portalType}`, JSON.stringify(openSections));
+    }
+  }, [openSections, portalType]);
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+    document.documentElement.classList.toggle("dark");
+  };
+
+  const toggleSection = (sectionTitle: string) => {
+    setOpenSections((prev) => {
+      const newState = {
+        ...prev,
+        [sectionTitle]: !prev[sectionTitle],
+      };
+      return newState;
+    });
+  };
+
+  const isItemActive = (href: string) => {
+    if (href === "/restaurant") {
+      return location.pathname === "/restaurant";
+    }
+    // Exact match for specific routes to avoid highlighting both "Order History" and "Today's Orders"
+    if (href === "/restaurant/orders/today") {
+      return location.pathname === "/restaurant/orders/today";
+    }
+    if (href === "/restaurant/orders") {
+      return location.pathname === "/restaurant/orders" && location.pathname !== "/restaurant/orders/today";
+    }
+    return location.pathname.startsWith(href);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -69,10 +170,25 @@ export function DashboardLayout({ children, portalType }: DashboardLayoutProps) 
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center gap-3 border-b border-border px-6">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <PortalIcon className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold text-foreground">{portalTitle}</span>
+            {portalType === "admin" ? (
+              <>
+                <img 
+                  src="/logo.png" 
+                  alt="Tawfir Logo" 
+                  className="h-9 w-9 object-contain"
+                />
+                <span className="text-lg font-bold text-foreground">Admin Portal</span>
+              </>
+            ) : (
+              <>
+                <img 
+                  src="/logo.png" 
+                  alt="Tawfir Logo" 
+                  className="h-9 w-9 object-contain"
+                />
+                <span className="text-lg font-bold text-foreground">{portalTitle}</span>
+              </>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -84,51 +200,119 @@ export function DashboardLayout({ children, portalType }: DashboardLayoutProps) 
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-4">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                    isActive
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <item.icon
+          <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
+            {portalType === "admin" ? (
+              // Admin navigation (flat list)
+              adminNavItems.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
                     className={cn(
-                      "h-5 w-5 transition-colors",
-                      isActive ? "text-primary" : "text-muted-foreground"
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
-                  />
-                  {item.title}
-                </Link>
-              );
-            })}
-          </nav>
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <item.icon
+                      className={cn(
+                        "h-5 w-5 transition-colors",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground"
+                      )}
+                    />
+                    {item.title}
+                  </Link>
+                );
+              })
+            ) : (
+              // Restaurant navigation (with collapsible sections)
+              restaurantNavSections.map((section, sectionIndex) => {
+                // If no title, render items directly (Dashboard)
+                if (!section.title) {
+                  return section.items.map((item) => {
+                    const isActive = isItemActive(item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        to={item.href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        )}
+                        onClick={() => setSidebarOpen(false)}
+                      >
+                        <item.icon
+                          className={cn(
+                            "h-5 w-5 transition-colors",
+                            isActive ? "text-primary-foreground" : "text-muted-foreground"
+                          )}
+                        />
+                        {item.title}
+                      </Link>
+                    );
+                  });
+                }
 
-          {/* User section */}
-          <div className="border-t border-border p-4">
-            <div className="mb-3 flex items-center gap-3 px-3">
-              <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-sm font-semibold text-primary">JD</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">John Doe</p>
-                <p className="text-xs text-muted-foreground truncate">john@example.com</p>
-              </div>
-            </div>
-            <Link to="/login">
-              <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive">
-                <LogOut className="h-5 w-5" />
-                Sign Out
-              </Button>
-            </Link>
-          </div>
+                // Render collapsible section
+                const isOpen = section.title ? openSections[section.title] ?? true : false;
+                const hasActiveItem = section.items.some((item) => isItemActive(item.href));
+
+                return (
+                  <Collapsible
+                    key={section.title}
+                    open={isOpen}
+                    onOpenChange={() => toggleSection(section.title!)}
+                  >
+                    <CollapsibleTrigger
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground",
+                        hasActiveItem && "text-foreground"
+                      )}
+                    >
+                      <span>{section.title}</span>
+                      <ChevronUp
+                        className={cn(
+                          "h-4 w-4 transition-transform",
+                          isOpen ? "rotate-0" : "rotate-180"
+                        )}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-1 mt-1">
+                      {section.items.map((item) => {
+                        const isActive = isItemActive(item.href);
+                        return (
+                          <Link
+                            key={item.href}
+                            to={item.href}
+                            className={cn(
+                              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ml-2",
+                              isActive
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            )}
+                            onClick={() => setSidebarOpen(false)}
+                          >
+                            <item.icon
+                              className={cn(
+                                "h-5 w-5 transition-colors",
+                                isActive ? "text-primary-foreground" : "text-muted-foreground"
+                              )}
+                            />
+                            {item.title}
+                          </Link>
+                        );
+                      })}
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })
+            )}
+          </nav>
         </div>
       </aside>
 
@@ -145,11 +329,44 @@ export function DashboardLayout({ children, portalType }: DashboardLayoutProps) 
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex-1" />
-          <Button variant="outline" size="sm" asChild>
-            <Link to={portalType === "admin" ? "/restaurant" : "/admin"}>
-              Switch to {portalType === "admin" ? "Restaurant" : "Admin"} Portal
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-sm font-semibold text-primary">AU</span>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium">Admin User</p>
+                  <p className="text-xs text-muted-foreground">admin@tawfir.com</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={toggleDarkMode}>
+                  {darkMode ? (
+                    <>
+                      <Sun className="mr-2 h-4 w-4" />
+                      Light Mode
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="mr-2 h-4 w-4" />
+                      Dark Mode
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to={portalType === "admin" ? "/admin/login" : "/login"} className="w-full">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </header>
 
         {/* Page content */}

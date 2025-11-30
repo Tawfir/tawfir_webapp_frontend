@@ -23,12 +23,12 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1",
+        "group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 h-full min-h-[140px]",
         className
       )}
     >
-      <div className="flex items-start justify-between">
-        <div className="space-y-2">
+      <div className="flex items-start justify-between h-full">
+        <div className="space-y-2 flex-1 min-w-0">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
           <p className="text-3xl font-bold tracking-tight text-foreground">{value}</p>
           {change && (
@@ -46,7 +46,7 @@ export function StatCard({
         </div>
         <div
           className={cn(
-            "flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 transition-transform duration-300 group-hover:scale-110",
+            "flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 transition-transform duration-300 group-hover:scale-110 flex-shrink-0",
             iconColor.includes("success") && "bg-success/10",
             iconColor.includes("warning") && "bg-warning/10",
             iconColor.includes("info") && "bg-info/10"

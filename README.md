@@ -1,73 +1,36 @@
-# Welcome to your Lovable project
+# TAWFIR - Admin/Restaurant Portals
 
-## Project info
+This is a repo containing the main admin and restaurant portal management for the overall application. 
 
-**URL**: https://lovable.dev/projects/9dbcebad-00f1-4de9-a485-b7ceb91c3ef4
+Follow these steps to run the application locally on your machine.
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/9dbcebad-00f1-4de9-a485-b7ceb91c3ef4) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+### 1. Install Dependencies
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
 # Step 3: Install the necessary dependencies.
 npm i
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 2 Start Development Servers
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### 3. Access the application
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- **Admin Panel:** http://127.0.0.1:8000/admin
+- **Restaurant Panel:** http://127.0.0.1:8000/restaurant
 
-**Use GitHub Codespaces**
+**Login Credentials:**
+Admin portal (/admin/login)
+- Email: admin@example.com
+- Password: password
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Restaurant portal (/login)
+- Email: restaurant@example.com
+- Password: password
 
-## What technologies are used for this project?
+## Notes
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/9dbcebad-00f1-4de9-a485-b7ceb91c3ef4) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- Keep both terminal windows running while developing
+- The application is configured to run on HTTP in local environment (not HTTPS)
+- Assets are automatically compiled by Vite in watch mode

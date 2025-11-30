@@ -24,10 +24,10 @@ export default function Index() {
           </Link>
           <div className="flex items-center gap-4">
             <Link to="/login">
-              <Button variant="ghost">Sign In</Button>
+              <Button variant="ghost">Restaurant Login</Button>
             </Link>
-            <Link to="/register">
-              <Button>Get Started</Button>
+            <Link to="/admin/login">
+              <Button variant="outline">Admin Login</Button>
             </Link>
           </div>
         </div>
@@ -52,15 +52,15 @@ export default function Index() {
               Manage orders, menus, and customers from a single dashboard.
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row animate-slide-up" style={{ animationDelay: "200ms" }}>
-              <Link to="/register">
+              <Link to="/login">
                 <Button size="xl" className="w-full sm:w-auto">
-                  Start Free Trial
+                  Restaurant Portal
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/admin">
+              <Link to="/admin/login">
                 <Button variant="outline" size="xl" className="w-full sm:w-auto">
-                  View Demo
+                  Admin Portal
                 </Button>
               </Link>
             </div>
@@ -154,23 +154,12 @@ export default function Index() {
             Join hundreds of restaurants already using Tawfir to streamline their operations.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link to="/register">
+            <Link to="/login">
               <Button size="xl" variant="gradient">
-                Start Your Free Trial
+                Access Restaurant Portal
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
-          </div>
-          <div className="mt-8 flex items-center justify-center gap-6 text-white/60 text-sm">
-            <span className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" /> No credit card required
-            </span>
-            <span className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" /> 14-day free trial
-            </span>
-            <span className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" /> Cancel anytime
-            </span>
           </div>
         </div>
       </section>
