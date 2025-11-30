@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Badge } from "@/components/ui/badge";
@@ -13,30 +13,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { ShoppingBag, DollarSign, TrendingUp, Eye, Globe, ChevronDown } from "lucide-react";
+import { restaurantApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface Order {
-  id: string;
-  customer: string;
-  items: string[];
-  amount: string;
+  id: number;
+  user?: { name: string };
+  items?: Array<{ dish: { name: string } }>;
+  total_price: number;
   status: "incoming" | "ready" | "completed";
-  time: string;
+  created_at: string;
+  pickup_time: string;
 }
-
-// Mock data - replace with API calls
-const mockStats = {
-  totalSurplusItems: 45,
-  surplusUtilization: 68,
-  revenueFromSurplus: 1247.50,
-  netEarnings: 1153.94,
-  totalCO2Saved: 89.5,
-};
-
-const mockIncomingOrders: Order[] = [
-  { id: "ORD-101", customer: "Ahmed Ali", items: ["Margherita Pizza", "Garlic Bread"], amount: "$45.00", status: "incoming", time: "5 min ago" },
-  { id: "ORD-102", customer: "Sara Khan", items: ["Pepperoni Pizza"], amount: "$28.50", status: "incoming", time: "8 min ago" },
-  { id: "ORD-103", customer: "Mohammed Hassan", items: ["Hawaiian Pizza", "Cola"], amount: "$35.00", status: "incoming", time: "15 min ago" },
-];
 
 const statusConfig = {
   incoming: { 
@@ -82,7 +70,96 @@ const todayOrderStatusData = [
 
 export default function RestaurantDashboard() {
   const [chartType, setChartType] = useState<"co2" | "orders">("co2");
+  const [stats, setStats] = useState({
+    totalSurplusItems: 0,
+    surplusUtilization: 0,
+    revenueFromSurplus: 0,
+    netEarnings: 0,
+    totalCO2Saved: 0,
+  });
+  const [incomingOrders, setIncomingOrders] = useState<Order[]>([]);
+  const [todayOrderStatusData, setTodayOrderStatusData] = useState([
+    { status: "Incoming", count: 0 },
+    { status: "Ready", count: 0 },
+    { status: "Completed", count: 0 },
+  ]);
+  const [loading, setLoading] = useState(true);
   const chartData = generateChartData(chartType);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch dishes for surplus items count
+      const dishesResponse = await restaurantApi.getDishes();
+      const dishes = dishesResponse.status ? dishesResponse.data.dishes : [];
+      const totalSurplusItems = dishes.reduce((sum: number, dish: any) => sum + (dish.quantity || 0), 0);
+
+      // Fetch orders
+      const ordersResponse = await restaurantApi.getOrders();
+      const allOrders = ordersResponse.status ? ordersResponse.data.orders : [];
+      
+      // Filter today's orders
+      const today = new Date().toDateString();
+      const todayOrders = allOrders.filter((order: Order) => {
+        const orderDate = new Date(order.created_at).toDateString();
+        return orderDate === today && order.status !== "cancelled";
+      });
+
+      // Get incoming orders (today only)
+      const incoming = todayOrders.filter((o: Order) => o.status === "incoming").slice(0, 10);
+
+      // Calculate stats from completed orders
+      const completedOrders = allOrders.filter((o: Order) => o.status === "completed");
+      const revenueFromSurplus = completedOrders.reduce((sum: number, o: Order) => sum + (o.total_price || 0), 0);
+      const netEarnings = revenueFromSurplus * 0.925; // After 7.5% service fee
+      
+      // Calculate CO2 saved from completed orders
+      const totalCO2Saved = completedOrders.reduce((sum: number, order: Order) => {
+        const orderCO2 = order.items?.reduce((itemSum: number, item: any) => {
+          const dish = item.dish;
+          return itemSum + ((dish?.co2_saved || 0) * item.quantity);
+        }, 0) || 0;
+        return sum + orderCO2;
+      }, 0);
+
+      // Calculate surplus utilization
+      const totalItemsGiven = completedOrders.reduce((sum: number, order: Order) => {
+        return sum + (order.items?.reduce((itemSum: number, item: any) => itemSum + item.quantity, 0) || 0);
+      }, 0);
+      const surplusUtilization = totalSurplusItems > 0 
+        ? Math.round((totalItemsGiven / (totalSurplusItems + totalItemsGiven)) * 100)
+        : 0;
+
+      // Today's order status counts
+      const incomingCount = todayOrders.filter((o: Order) => o.status === "incoming").length;
+      const readyCount = todayOrders.filter((o: Order) => o.status === "ready").length;
+      const completedCount = todayOrders.filter((o: Order) => o.status === "completed").length;
+
+      setStats({
+        totalSurplusItems,
+        surplusUtilization,
+        revenueFromSurplus,
+        netEarnings,
+        totalCO2Saved,
+      });
+
+      setIncomingOrders(incoming);
+      setTodayOrderStatusData([
+        { status: "Incoming", count: incomingCount },
+        { status: "Ready", count: readyCount },
+        { status: "Completed", count: completedCount },
+      ]);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const chartConfig = {
     value: {
@@ -114,7 +191,7 @@ export default function RestaurantDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "0ms" }}>
             <StatCard
               title="Total Surplus Items"
-              value={`${mockStats.totalSurplusItems} items`}
+              value={`${stats.totalSurplusItems} items`}
               change="Currently available"
               changeType="neutral"
               icon={ShoppingBag}
@@ -125,7 +202,7 @@ export default function RestaurantDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "100ms" }}>
             <StatCard
               title="Surplus Utilization"
-              value={`${mockStats.surplusUtilization}%`}
+              value={`${stats.surplusUtilization}%`}
               change="Items given away"
               changeType="positive"
               icon={TrendingUp}
@@ -136,7 +213,7 @@ export default function RestaurantDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "200ms" }}>
             <StatCard
               title="Surplus Earnings"
-              value={`$${mockStats.revenueFromSurplus.toFixed(2)}`}
+              value={`$${stats.revenueFromSurplus.toFixed(2)}`}
               change="Total earnings"
               changeType="positive"
               icon={DollarSign}
@@ -147,7 +224,7 @@ export default function RestaurantDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "300ms" }}>
             <StatCard
               title="Net Earnings"
-              value={`$${mockStats.netEarnings.toFixed(2)}`}
+              value={`$${stats.netEarnings.toFixed(2)}`}
               change="After 7.5% service fees"
               changeType="neutral"
               icon={DollarSign}
@@ -158,7 +235,7 @@ export default function RestaurantDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "400ms" }}>
             <StatCard
               title="Total CO₂ Saved"
-              value={`${mockStats.totalCO2Saved.toFixed(2)} kg`}
+              value={`${stats.totalCO2Saved.toFixed(2)} kg`}
               change="Environmental impact"
               changeType="neutral"
               icon={Globe}
@@ -180,9 +257,21 @@ export default function RestaurantDashboard() {
               </div>
               <div className="flex-1 overflow-y-auto min-h-0">
                 <div className="divide-y divide-border">
-                  {mockIncomingOrders.length > 0 ? (
-                    mockIncomingOrders.map((order) => {
+                  {loading ? (
+                    <div className="p-8 text-center">
+                      <p className="text-sm text-muted-foreground">Loading orders...</p>
+                    </div>
+                  ) : incomingOrders.length > 0 ? (
+                    incomingOrders.map((order) => {
                       const status = statusConfig[order.status];
+                      const customerInitials = order.user?.name
+                        ? order.user.name.split(" ").map(n => n[0]).join("").toUpperCase()
+                        : "CU";
+                      const itemsList = order.items?.map(item => item.dish?.name).filter(Boolean).join(", ") || "No items";
+                      const timeAgo = new Date(order.created_at);
+                      const minutesAgo = Math.floor((Date.now() - timeAgo.getTime()) / 60000);
+                      const timeDisplay = minutesAgo < 60 ? `${minutesAgo} min ago` : timeAgo.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      
                       return (
                         <div
                           key={order.id}
@@ -191,19 +280,19 @@ export default function RestaurantDashboard() {
                           <div className="flex items-center gap-4">
                             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                               <span className="text-sm font-semibold text-primary">
-                                {order.customer.split(" ").map(n => n[0]).join("")}
+                                {customerInitials}
                               </span>
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium text-foreground">{order.id}</p>
-                                <span className="text-xs text-muted-foreground">• {order.time}</span>
+                                <p className="text-sm font-medium text-foreground">#{order.id}</p>
+                                <span className="text-xs text-muted-foreground">• {timeDisplay}</span>
                               </div>
-                              <p className="text-sm text-muted-foreground">{order.items.join(", ")}</p>
+                              <p className="text-sm text-muted-foreground">{itemsList}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className="text-sm font-semibold text-foreground">{order.amount}</span>
+                            <span className="text-sm font-semibold text-foreground">${order.total_price.toFixed(2)}</span>
                             <Badge variant="outline" className={cn("font-medium text-xs uppercase tracking-wide", status.className)}>
                               {status.label}
                             </Badge>

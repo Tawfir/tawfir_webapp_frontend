@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -23,71 +23,160 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { ArrowLeft, Clock } from "lucide-react";
+import { restaurantApi, userApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface Dish {
-  id: string;
+  id: number;
   name: string;
-  description: string;
+  description: string | null;
   image: string | null;
-  originalPrice: number;
-  sellingPrice: number;
-  co2Saved: number;
-  availabilityMethod: "pickup";
-  pickupTime: string;
+  price: number;
+  discounted_price: number | null;
+  co2_saved: number | null;
+  availability_method: "pickup";
+  pickup_time: string | null;
   quantity: number;
-  categories: string[];
+  categories: Array<{ id: number; name: string }>;
 }
-
-const mockDish: Dish = {
-  id: "1",
-  name: "Chicken Sandwhich",
-  description: "Enter dish description",
-  image: null,
-  originalPrice: 10.00,
-  sellingPrice: 5.00,
-  co2Saved: 4.40,
-  availabilityMethod: "pickup",
-  pickupTime: "22:00",
-  quantity: 5,
-  categories: ["Burgers"],
-};
-
-const mockCategories = ["Burgers", "Sandwiches", "Drinks", "Desserts", "Hot Meals", "Salads"];
 
 export default function EditDishPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [formData, setFormData] = useState<Dish>(mockDish);
+  const [formData, setFormData] = useState<Dish | null>(null);
+  const [availableCategories, setAvailableCategories] = useState<Array<{ id: number; name: string }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
-  const handleInputChange = (field: keyof Dish, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  useEffect(() => {
+    if (id) {
+      fetchDish();
+      fetchCategories();
+    }
+  }, [id]);
 
-  const handleCategoryChange = (category: string) => {
-    setFormData((prev) => {
-      const categories = prev.categories.includes(category)
-        ? prev.categories.filter((c) => c !== category)
-        : [...prev.categories, category];
-      return { ...prev, categories };
-    });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Form submitted:", formData);
-    navigate("/restaurant/menu");
-  };
-
-  const handleDelete = () => {
-    if (window.confirm("Are you sure you want to delete this dish?")) {
-      console.log("Deleting dish:", id);
+  const fetchDish = async () => {
+    try {
+      setFetching(true);
+      const dishesResponse = await restaurantApi.getDishes();
+      if (dishesResponse.status && dishesResponse.data.dishes) {
+        const dish = dishesResponse.data.dishes.find((d: Dish) => d.id === parseInt(id!));
+        if (dish) {
+          setFormData(dish);
+        } else {
+          toast.error("Dish not found");
+          navigate("/restaurant/menu");
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load dish");
       navigate("/restaurant/menu");
+    } finally {
+      setFetching(false);
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await userApi.getCategories();
+      if (response.status && response.data.categories) {
+        setAvailableCategories(response.data.categories);
+      }
+    } catch (error: any) {
+      toast.error("Failed to load categories");
+    }
+  };
+
+  const handleInputChange = (field: keyof Dish, value: any) => {
+    if (!formData) return;
+    setFormData((prev) => prev ? ({ ...prev, [field]: value }) : null);
+  };
+
+  const handleCategoryChange = (categoryName: string) => {
+    if (!formData) return;
+    const category = availableCategories.find(c => c.name === categoryName);
+    if (!category) return;
+
+    setFormData((prev) => {
+      if (!prev) return null;
+      const categoryIds = prev.categories.map(c => c.id);
+      const hasCategory = categoryIds.includes(category.id);
+      
+      return {
+        ...prev,
+        categories: hasCategory
+          ? prev.categories.filter((c) => c.id !== category.id)
+          : [...prev.categories, category],
+      };
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData || !id) return;
+
+    if (formData.categories.length === 0) {
+      toast.error("Please select at least one category");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const categoryIds = formData.categories.map(c => c.id);
+      const originalPrice = formData.discounted_price ? formData.price : formData.price;
+      const sellingPrice = formData.discounted_price || formData.price;
+
+      await restaurantApi.updateDish(parseInt(id), {
+        name: formData.name,
+        price: originalPrice,
+        discounted_price: formData.discounted_price || undefined,
+        co2_saved: formData.co2_saved || undefined,
+        description: formData.description || undefined,
+        pickup_time: formData.pickup_time || undefined,
+        quantity: formData.quantity,
+        food_category_ids: categoryIds,
+      });
+
+      toast.success("Dish updated successfully!");
+      navigate("/restaurant/menu");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update dish");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    if (!window.confirm("Are you sure you want to delete this dish?")) {
+      return;
+    }
+
+    try {
+      await restaurantApi.deleteDish(parseInt(id));
+      toast.success("Dish deleted successfully");
+      navigate("/restaurant/menu");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete dish");
+    }
+  };
+
+  if (fetching || !formData) {
+    return (
+      <DashboardLayout portalType="restaurant">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Loading dish...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   // Calculate discount percentage if original price > selling price
-  const discountPercent = formData.originalPrice > formData.sellingPrice
-    ? Math.round(((formData.originalPrice - formData.sellingPrice) / formData.originalPrice) * 100)
+  const originalPrice = formData.discounted_price ? formData.price : formData.price;
+  const sellingPrice = formData.discounted_price || formData.price;
+  const discountPercent = originalPrice > sellingPrice
+    ? Math.round(((originalPrice - sellingPrice) / originalPrice) * 100)
     : 0;
 
   return (
@@ -143,7 +232,7 @@ export default function EditDishPage() {
                     </Label>
                     <Input
                       id="name"
-                      value={formData.name}
+                      value={formData?.name || ""}
                       onChange={(e) => handleInputChange("name", e.target.value)}
                       required
                       className="mt-1"
@@ -156,7 +245,7 @@ export default function EditDishPage() {
                       Image <span className="text-destructive">*</span>
                     </Label>
                     <FileUpload
-                      value={formData.image}
+                      value={formData?.image || null}
                       onChange={(file) => handleInputChange("image", file)}
                       accept="image/*"
                       className="mt-1"
@@ -171,7 +260,7 @@ export default function EditDishPage() {
                       id="quantity"
                       type="number"
                       min="0"
-                      value={formData.quantity}
+                      value={formData?.quantity || 0}
                       onChange={(e) => handleInputChange("quantity", parseInt(e.target.value) || 0)}
                       className="mt-1"
                       required
@@ -191,8 +280,14 @@ export default function EditDishPage() {
                           id="originalPrice"
                           type="number"
                           step="0.01"
-                          value={formData.originalPrice}
-                          onChange={(e) => handleInputChange("originalPrice", parseFloat(e.target.value) || 0)}
+                          value={originalPrice || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            handleInputChange("price", val);
+                            if (!formData?.discounted_price) {
+                              handleInputChange("discounted_price", null);
+                            }
+                          }}
                           className="pl-7"
                           placeholder="0.00"
                         />
@@ -210,8 +305,15 @@ export default function EditDishPage() {
                           id="sellingPrice"
                           type="number"
                           step="0.01"
-                          value={formData.sellingPrice}
-                          onChange={(e) => handleInputChange("sellingPrice", parseFloat(e.target.value) || 0)}
+                          value={sellingPrice || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            if (originalPrice > val) {
+                              handleInputChange("discounted_price", val);
+                            } else {
+                              handleInputChange("discounted_price", null);
+                            }
+                          }}
                           className="pl-7"
                           required
                           placeholder="0.00"
@@ -231,8 +333,8 @@ export default function EditDishPage() {
                       id="co2Saved"
                       type="number"
                       step="0.01"
-                      value={formData.co2Saved}
-                      onChange={(e) => handleInputChange("co2Saved", parseFloat(e.target.value) || 0)}
+                      value={formData?.co2_saved || ""}
+                      onChange={(e) => handleInputChange("co2_saved", parseFloat(e.target.value) || null)}
                       className="mt-1"
                       placeholder="0.00"
                     />
@@ -243,8 +345,8 @@ export default function EditDishPage() {
                       Availability method <span className="text-destructive">*</span>
                     </Label>
                     <Select
-                      value={formData.availabilityMethod}
-                      onValueChange={(value) => handleInputChange("availabilityMethod", value)}
+                      value={formData?.availability_method || "pickup"}
+                      onValueChange={(value) => handleInputChange("availability_method", value)}
                     >
                       <SelectTrigger className="mt-1 focus:ring-primary">
                         <SelectValue />
@@ -274,7 +376,7 @@ export default function EditDishPage() {
                     <Label htmlFor="description">Description</Label>
                     <Textarea
                       id="description"
-                      value={formData.description}
+                      value={formData?.description || ""}
                       onChange={(e) => handleInputChange("description", e.target.value)}
                       className="mt-1"
                       placeholder="Enter dish description"
@@ -287,17 +389,17 @@ export default function EditDishPage() {
                       Categories <span className="text-destructive">*</span>
                     </Label>
                     <div className="mt-2 space-y-3">
-                      {formData.categories.length > 0 && (
+                      {formData?.categories && formData.categories.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-2">
                           {formData.categories.map((category) => (
                             <div
-                              key={category}
+                              key={category.id}
                               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary text-primary-foreground text-sm"
                             >
-                              {category}
+                              {category.name}
                               <button
                                 type="button"
-                                onClick={() => handleCategoryChange(category)}
+                                onClick={() => handleCategoryChange(category.name)}
                                 className="hover:opacity-70"
                               >
                                 ×
@@ -309,7 +411,7 @@ export default function EditDishPage() {
                       <Select
                         value=""
                         onValueChange={(value) => {
-                          if (value && !formData.categories.includes(value)) {
+                          if (value) {
                             handleCategoryChange(value);
                           }
                         }}
@@ -318,15 +420,15 @@ export default function EditDishPage() {
                           <SelectValue placeholder="Select an option" />
                         </SelectTrigger>
                         <SelectContent>
-                          {mockCategories
-                            .filter((cat) => !formData.categories.includes(cat))
+                          {availableCategories
+                            .filter((cat) => !formData?.categories.some(c => c.id === cat.id))
                             .map((category) => (
                               <SelectItem
-                                key={category}
-                                value={category}
+                                key={category.id}
+                                value={category.name}
                                 className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
                               >
-                                {category}
+                                {category.name}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -342,8 +444,8 @@ export default function EditDishPage() {
                       <Input
                         id="pickupTime"
                         type="time"
-                        value={formData.pickupTime}
-                        onChange={(e) => handleInputChange("pickupTime", e.target.value)}
+                        value={formData?.pickup_time || ""}
+                        onChange={(e) => handleInputChange("pickup_time", e.target.value)}
                         required
                         className="pr-10"
                       />
@@ -356,7 +458,9 @@ export default function EditDishPage() {
           </div>
 
           <div className="flex items-center gap-4 pt-6">
-            <Button type="submit">Save changes</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Saving..." : "Save changes"}
+            </Button>
             <Button type="button" variant="outline" asChild>
               <Link to="/restaurant/menu">Cancel</Link>
             </Button>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Store, ShoppingBag, Globe, DollarSign, ChevronDown } from "lucide-react";
@@ -11,14 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-
-// Mock data - replace with actual API calls
-const mockStats = {
-  totalRestaurants: 1,
-  surplusItemsDistributed: 60,
-  totalCO2Saved: 189.0,
-  platformRevenue: 31.88,
-};
+import { adminApi } from "@/services/api";
+import { toast } from "sonner";
 
 // Generate chart data for last 30 days
 const generateChartData = (type: "co2" | "orders") => {
@@ -44,7 +38,32 @@ const generateChartData = (type: "co2" | "orders") => {
 
 export default function AdminDashboard() {
   const [chartType, setChartType] = useState<"co2" | "orders">("co2");
+  const [stats, setStats] = useState({
+    totalRestaurants: 0,
+    surplusItemsDistributed: 0,
+    totalCO2Saved: 0,
+    platformRevenue: 0,
+  });
+  const [loading, setLoading] = useState(true);
   const chartData = generateChartData(chartType);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const response = await adminApi.getStats();
+      if (response.status && response.data) {
+        setStats(response.data);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load dashboard stats");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const chartConfig = {
     value: {
@@ -78,7 +97,7 @@ export default function AdminDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "0ms" }}>
             <StatCard
               title="Registered Restaurants"
-              value={mockStats.totalRestaurants}
+              value={loading ? "..." : stats.totalRestaurants}
               change="Total restaurants on the platform"
               changeType="neutral"
               icon={Store}
@@ -88,7 +107,7 @@ export default function AdminDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "100ms" }}>
             <StatCard
               title="Surplus Items Distributed"
-              value={`${mockStats.surplusItemsDistributed} items`}
+              value={loading ? "..." : `${stats.surplusItemsDistributed} items`}
               change="From all completed orders"
               changeType="neutral"
               icon={ShoppingBag}
@@ -98,7 +117,7 @@ export default function AdminDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "200ms" }}>
             <StatCard
               title="Total CO₂ Saved"
-              value={`${mockStats.totalCO2Saved.toFixed(2)} kg`}
+              value={loading ? "..." : `${stats.totalCO2Saved.toFixed(2)} kg`}
               change="Environmental impact across all restaurants"
               changeType="neutral"
               icon={Globe}
@@ -108,7 +127,7 @@ export default function AdminDashboard() {
           <div className="animate-slide-up" style={{ animationDelay: "300ms" }}>
             <StatCard
               title="Platform Revenue"
-              value={`$${mockStats.platformRevenue.toFixed(2)}`}
+              value={loading ? "..." : `$${stats.platformRevenue.toFixed(2)}`}
               change="7.5% service fees earned from restaurants"
               changeType="neutral"
               icon={DollarSign}

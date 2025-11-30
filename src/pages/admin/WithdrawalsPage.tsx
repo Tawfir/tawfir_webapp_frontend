@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -25,19 +25,19 @@ import {
 } from "@/components/ui/breadcrumb";
 import { cn } from "@/lib/utils";
 import { Filter, CheckCircle2, XCircle, DollarSign, Clock } from "lucide-react";
+import { adminApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface WithdrawalRequest {
   id: number;
-  restaurant: string;
+  restaurant_id: number;
+  restaurant?: { id: number; name: string };
   amount: number;
   method: "stripe" | "manual";
   status: "pending" | "approved" | "declined" | "paid";
-  createdAt: string;
+  bank_account_details?: string;
+  created_at: string;
 }
-
-const mockWithdrawals: WithdrawalRequest[] = [
-  // Empty for now - will show empty state
-];
 
 const statusConfig = {
   pending: { 
@@ -63,14 +63,34 @@ const statusConfig = {
 };
 
 export default function WithdrawalsPage() {
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [filterOpen, setFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
   const itemsPerPage = 10;
+
+  useEffect(() => {
+    fetchWithdrawals();
+  }, []);
+
+  const fetchWithdrawals = async () => {
+    try {
+      setLoading(true);
+      const response = await adminApi.getWithdrawals();
+      if (response.status && response.data.withdrawals) {
+        setWithdrawals(response.data.withdrawals);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load withdrawal requests");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const activeFiltersCount = statusFilter !== "all" ? 1 : 0;
 
-  const filteredWithdrawals = mockWithdrawals.filter((withdrawal) => {
+  const filteredWithdrawals = withdrawals.filter((withdrawal) => {
     const matchesStatus = statusFilter === "all" || withdrawal.status === statusFilter;
     return matchesStatus;
   });
@@ -232,7 +252,7 @@ export default function WithdrawalsPage() {
                           {withdrawal.id}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">
-                          {withdrawal.restaurant}
+                          {withdrawal.restaurant?.name || `Restaurant #${withdrawal.restaurant_id}`}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                           <div className="flex items-center gap-1">
@@ -250,7 +270,7 @@ export default function WithdrawalsPage() {
                           </Badge>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                          {withdrawal.createdAt}
+                          {new Date(withdrawal.created_at).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {withdrawal.status === "pending" && (

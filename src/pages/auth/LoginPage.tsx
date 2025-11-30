@@ -4,17 +4,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Mail, Lock, Home } from "lucide-react";
+import { authApi } from "@/services/api";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to restaurant dashboard
-    navigate("/restaurant");
+    setIsLoading(true);
+
+    try {
+      const response = await authApi.login(email, password);
+      
+      if (response.status && response.data.user) {
+        toast.success("Login successful!");
+        
+        // Check user type and navigate accordingly
+        const userType = response.data.user.type;
+        if (userType === 'restaurant') {
+          navigate("/restaurant");
+        } else if (userType === 'admin') {
+          navigate("/admin");
+        } else {
+          // Regular user - navigate to home or user dashboard
+          navigate("/");
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Login failed. Please check your credentials.");
+      console.error("Login error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,8 +123,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Sign in
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         </div>

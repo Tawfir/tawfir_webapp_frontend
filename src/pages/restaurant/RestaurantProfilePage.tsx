@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -23,35 +23,14 @@ import {
 } from "@/components/ui/breadcrumb";
 import { MapPin, Plus, X, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { restaurantApi, userApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface WorkingHour {
   day: string;
   open: string;
   close: string;
 }
-
-const mockRestaurant = {
-  name: "Tawfir Restaurant",
-  address: "123 Test Street",
-  lat: "24.7136",
-  lng: "46.6753",
-  payoutMethod: "manual",
-  publicPhone: "0500000000",
-  privatePhone: "0550000000",
-  workingHours: [
-    { day: "monday", open: "09:00", close: "22:00" },
-    { day: "tuesday", open: "09:00", close: "22:00" },
-    { day: "wednesday", open: "09:00", close: "22:00" },
-    { day: "thursday", open: "09:00", close: "22:00" },
-    { day: "friday", open: "09:00", close: "22:00" },
-    { day: "saturday", open: "10:00", close: "23:00" },
-    { day: "sunday", open: "10:00", close: "23:00" },
-  ] as WorkingHour[],
-  foodCategoryIds: [1, 2],
-  profilePic: null as string | null,
-  placePics: [] as string[],
-  coverImage: null as string | null,
-};
 
 const daysOfWeek = [
   { value: "monday", label: "Monday" },
@@ -63,31 +42,73 @@ const daysOfWeek = [
   { value: "sunday", label: "Sunday" },
 ];
 
-const mockFoodCategories = [
-  { id: 1, name: "Burgers" },
-  { id: 2, name: "Salads & Bowls" },
-  { id: 3, name: "Drinks" },
-  { id: 4, name: "Desserts" },
-  { id: 5, name: "Hot Meals" },
-  { id: 6, name: "Sandwiches & Wraps" },
-];
-
 export default function RestaurantProfilePage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    name: mockRestaurant.name,
-    address: mockRestaurant.address,
-    lat: mockRestaurant.lat,
-    lng: mockRestaurant.lng,
-    payoutMethod: mockRestaurant.payoutMethod,
-    publicPhone: mockRestaurant.publicPhone,
-    privatePhone: mockRestaurant.privatePhone,
-    workingHours: [...mockRestaurant.workingHours],
-    foodCategoryIds: [...mockRestaurant.foodCategoryIds],
-    profilePic: mockRestaurant.profilePic,
-    placePics: [...mockRestaurant.placePics],
-    coverImage: mockRestaurant.coverImage,
+    name: "",
+    address: "",
+    lat: "",
+    lng: "",
+    publicPhone: "",
+    privatePhone: "",
+    workingHours: [] as WorkingHour[],
+    foodCategoryIds: [] as number[],
+    profilePic: null as string | null,
+    placePics: [] as string[],
+    coverImage: null as string | null,
   });
+  const [availableCategories, setAvailableCategories] = useState<Array<{ id: number; name: string }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    fetchRestaurant();
+    fetchCategories();
+  }, []);
+
+  const fetchRestaurant = async () => {
+    try {
+      setFetching(true);
+      const response = await restaurantApi.getRestaurant();
+      if (response.status && response.data) {
+        const restaurant = response.data;
+        const workingHours = restaurant.working_hours 
+          ? (typeof restaurant.working_hours === 'string' 
+              ? JSON.parse(restaurant.working_hours) 
+              : restaurant.working_hours)
+          : [];
+        
+        setFormData({
+          name: restaurant.name || "",
+          address: restaurant.address || "",
+          lat: restaurant.lat?.toString() || "",
+          lng: restaurant.lng?.toString() || "",
+          publicPhone: restaurant.public_phone || "",
+          privatePhone: restaurant.private_phone || "",
+          workingHours: Array.isArray(workingHours) ? workingHours : [],
+          foodCategoryIds: restaurant.categories?.map((c: any) => c.id) || [],
+          profilePic: restaurant.profile_pic || null,
+          placePics: restaurant.place_pics || [],
+          coverImage: restaurant.cover_image || null,
+        });
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load restaurant profile");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await userApi.getCategories();
+      if (response.status && response.data.categories) {
+        setAvailableCategories(response.data.categories);
+      }
+    } catch (error: any) {
+      toast.error("Failed to load categories");
+    }
+  };
 
   const handleInputChange = (field: string, value: string | string[] | WorkingHour[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -163,10 +184,39 @@ export default function RestaurantProfilePage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted:", formData);
-    // Implement API call to save restaurant profile
+    
+    if (!formData.name || !formData.address || !formData.lat || !formData.lng) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const workingHoursObj: Record<string, { open: string; close: string }> = {};
+      formData.workingHours.forEach(wh => {
+        workingHoursObj[wh.day] = { open: wh.open, close: wh.close };
+      });
+
+      await restaurantApi.updateRestaurant({
+        restaurant_name: formData.name,
+        address: formData.address,
+        lat: parseFloat(formData.lat),
+        lng: parseFloat(formData.lng),
+        public_phone: formData.publicPhone || undefined,
+        private_phone: formData.privatePhone || undefined,
+        working_hours: workingHoursObj,
+        food_category_ids: formData.foodCategoryIds,
+      });
+
+      toast.success("Restaurant profile updated successfully!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update restaurant profile");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -192,8 +242,13 @@ export default function RestaurantProfilePage() {
           </h1>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-6 md:grid-cols-2 md:items-stretch">
+        {fetching ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading restaurant profile...</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-6 md:grid-cols-2 md:items-stretch">
             {/* Left Column */}
             <div className="space-y-6 flex flex-col">
               <Card className="flex-1 flex flex-col">
@@ -286,17 +341,24 @@ export default function RestaurantProfilePage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="payoutMethod">
-                      Payout Method <span className="text-destructive">*</span>
-                    </Label>
-                    <Select
-                      value={formData.payoutMethod}
-                      onValueChange={(value) => handleInputChange("payoutMethod", value)}
-                    >
-                      <SelectTrigger className="mt-1 focus:ring-primary">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
+                    <Label htmlFor="publicPhone">Public Phone</Label>
+                    <Input
+                      id="publicPhone"
+                      value={formData.publicPhone}
+                      onChange={(e) => handleInputChange("publicPhone", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="privatePhone">Private Phone</Label>
+                    <Input
+                      id="privatePhone"
+                      value={formData.privatePhone}
+                      onChange={(e) => handleInputChange("privatePhone", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
                         <SelectItem
                           value="manual"
                           className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
@@ -424,39 +486,41 @@ export default function RestaurantProfilePage() {
                       Food Categories <span className="text-destructive">*</span>
                     </Label>
                     <Select
-                      value={formData.foodCategoryIds[0]?.toString()}
+                      value=""
                       onValueChange={(value) => {
-                        const ids = formData.foodCategoryIds.includes(parseInt(value))
-                          ? formData.foodCategoryIds
-                          : [...formData.foodCategoryIds, parseInt(value)];
-                        handleInputChange("foodCategoryIds", ids);
+                        const id = parseInt(value);
+                        if (!formData.foodCategoryIds.includes(id)) {
+                          handleInputChange("foodCategoryIds", [...formData.foodCategoryIds, id]);
+                        }
                       }}
                     >
                       <SelectTrigger className="mt-1 focus:ring-primary">
-                        <SelectValue placeholder="Select an option" />
+                        <SelectValue placeholder="Select a category" />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockFoodCategories.map((category) => (
-                          <SelectItem
-                            key={category.id}
-                            value={category.id.toString()}
-                            className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
-                          >
-                            {category.name}
-                          </SelectItem>
-                        ))}
+                        {availableCategories
+                          .filter(cat => !formData.foodCategoryIds.includes(cat.id))
+                          .map((category) => (
+                            <SelectItem
+                              key={category.id}
+                              value={category.id.toString()}
+                              className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                            >
+                              {category.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                     {formData.foodCategoryIds.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {formData.foodCategoryIds.map((id) => {
-                          const category = mockFoodCategories.find((c) => c.id === id);
+                          const category = availableCategories.find((c) => c.id === id);
                           return (
                             <div
                               key={id}
                               className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-sm"
                             >
-                              {category?.name}
+                              {category?.name || `Category ${id}`}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -530,12 +594,15 @@ export default function RestaurantProfilePage() {
           </div>
 
           <div className="flex items-center gap-4 pt-6">
-            <Button type="submit">Save changes</Button>
+            <Button type="submit" disabled={loading || fetching}>
+              {loading ? "Saving..." : "Save changes"}
+            </Button>
             <Button type="button" variant="outline" asChild>
               <Link to="/restaurant">Cancel</Link>
             </Button>
           </div>
-        </form>
+          </form>
+        )}
       </div>
     </DashboardLayout>
   );

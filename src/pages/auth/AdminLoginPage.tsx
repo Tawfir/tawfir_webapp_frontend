@@ -5,17 +5,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff, Mail, Lock, Shield, Home } from "lucide-react";
+import { authApi } from "@/services/api";
+import { toast } from "sonner";
 
 export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to admin dashboard
-    navigate("/admin");
+    setIsLoading(true);
+
+    try {
+      const response = await authApi.login(email, password);
+      
+      if (response.status && response.data.user) {
+        // Verify user is admin
+        if (response.data.user.type !== 'admin') {
+          toast.error("Access denied. Admin credentials required.");
+          return;
+        }
+        
+        toast.success("Admin login successful!");
+        navigate("/admin");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Login failed. Please check your credentials.");
+      console.error("Admin login error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -104,8 +126,8 @@ export default function AdminLoginPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Sign in to Admin Portal
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign in to Admin Portal"}
             </Button>
           </form>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -26,28 +26,20 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Plus, Search, Filter, Eye, Edit, ChevronDown } from "lucide-react";
+import { adminApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface Restaurant {
   id: number;
   name: string;
-  owner: string;
+  owner_name: string;
+  owner_email: string;
   address: string;
   status: "pending" | "approved" | "rejected";
-  isFeatured: boolean;
-  created: string;
+  is_featured?: boolean;
+  created_at: string;
+  categories?: Array<{ id: number; name: string }>;
 }
-
-const mockRestaurants: Restaurant[] = [
-  { 
-    id: 1, 
-    name: "Tawfir Restaurant", 
-    owner: "Restaurant Owner", 
-    address: "123 Test Street", 
-    status: "approved", 
-    isFeatured: true, 
-    created: "29/11/2025" 
-  },
-];
 
 const statusConfig = {
   pending: { 
@@ -65,28 +57,48 @@ const statusConfig = {
 };
 
 export default function RestaurantsPage() {
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [featuredFilter, setFeaturedFilter] = useState<string>("all");
   const [filterOpen, setFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
   const itemsPerPage = 10;
+
+  useEffect(() => {
+    fetchRestaurants();
+  }, []);
+
+  const fetchRestaurants = async () => {
+    try {
+      setLoading(true);
+      const response = await adminApi.getRestaurants();
+      if (response.status && response.data.restaurants) {
+        setRestaurants(response.data.restaurants);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load restaurants");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const activeFiltersCount = [
     statusFilter !== "all",
     featuredFilter !== "all",
   ].filter(Boolean).length;
 
-  const filteredRestaurants = mockRestaurants.filter((restaurant) => {
+  const filteredRestaurants = restaurants.filter((restaurant) => {
     const matchesSearch = searchQuery === "" || 
       restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      restaurant.owner.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      restaurant.owner_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       restaurant.address.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || restaurant.status === statusFilter;
     const matchesFeatured = featuredFilter === "all" || 
-      (featuredFilter === "featured" && restaurant.isFeatured) ||
-      (featuredFilter === "not-featured" && !restaurant.isFeatured);
+      (featuredFilter === "featured" && restaurant.is_featured) ||
+      (featuredFilter === "not-featured" && !restaurant.is_featured);
     
     return matchesSearch && matchesStatus && matchesFeatured;
   });
@@ -279,7 +291,13 @@ export default function RestaurantsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {paginatedRestaurants.length > 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-muted-foreground">
+                      Loading restaurants...
+                    </td>
+                  </tr>
+                ) : paginatedRestaurants.length > 0 ? (
                   paginatedRestaurants.map((restaurant, index) => {
                     const status = statusConfig[restaurant.status];
                     return (
@@ -309,16 +327,16 @@ export default function RestaurantsPage() {
                           <Badge 
                             className={cn(
                               "font-medium text-xs uppercase tracking-wide px-3 py-1.5",
-                              restaurant.isFeatured 
+                              restaurant.is_featured 
                                 ? "bg-primary text-primary-foreground border-0" 
                                 : "bg-muted text-muted-foreground border-0"
                             )}
                           >
-                            {restaurant.isFeatured ? "YES" : "NO"}
+                            {restaurant.is_featured ? "YES" : "NO"}
                           </Badge>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                          {restaurant.created}
+                          {new Date(restaurant.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">

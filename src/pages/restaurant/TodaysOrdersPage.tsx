@@ -1,98 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ShoppingCart, CheckCircle } from "lucide-react";
+import { restaurantApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface Order {
   id: number;
-  customer: string;
-  items: { name: string; quantity: number; price: number }[];
-  totalPrice: number;
-  status: "incoming" | "ready" | "completed";
-  time: string;
+  user?: { name: string; email: string };
+  items?: Array<{ dish: { name: string }; quantity: number; price_at_order_time: number }>;
+  total_price: number;
+  status: "incoming" | "ready" | "completed" | "cancelled";
+  pickup_time: string;
+  created_at: string;
 }
-
-const mockOrders: Order[] = [
-  { 
-    id: 6, 
-    customer: "Normal User", 
-    items: [
-      { name: "Chicken Sandwhich", quantity: 1, price: 5.00 },
-      { name: "Fresh Orange Juice", quantity: 1, price: 2.50 },
-    ],
-    totalPrice: 12.50, 
-    status: "incoming", 
-    time: "21:45" 
-  },
-  { 
-    id: 5, 
-    customer: "Normal User", 
-    items: [
-      { name: "Chicken Burger", quantity: 1, price: 10.00 },
-      { name: "Iced Latte", quantity: 1, price: 7.50 },
-    ],
-    totalPrice: 15.25, 
-    status: "incoming", 
-    time: "16:45" 
-  },
-  { 
-    id: 3, 
-    customer: "Normal User", 
-    items: [
-      { name: "Mac & Cheese Pasta", quantity: 2, price: 10.00 },
-    ],
-    totalPrice: 28.50, 
-    status: "incoming", 
-    time: "15:20" 
-  },
-  { 
-    id: 10, 
-    customer: "Normal User", 
-    items: [
-      { name: "Chicken Biryani", quantity: 1, price: 7.50 },
-      { name: "Naan Bread", quantity: 2, price: 2.50 },
-      { name: "Water Bottle", quantity: 1, price: 1.00 },
-    ],
-    totalPrice: 35.50, 
-    status: "ready", 
-    time: "19:15" 
-  },
-  { 
-    id: 8, 
-    customer: "Normal User", 
-    items: [
-      { name: "Veggie Burger", quantity: 1, price: 7.50 },
-      { name: "Cheesecake", quantity: 1, price: 5.00 },
-    ],
-    totalPrice: 18.75, 
-    status: "ready", 
-    time: "18:00" 
-  },
-  { 
-    id: 18, 
-    customer: "Normal User", 
-    items: [
-      { name: "Chicken Biryani", quantity: 1, price: 7.50 },
-      { name: "Naan Bread", quantity: 2, price: 2.50 },
-    ],
-    totalPrice: 25.00, 
-    status: "completed", 
-    time: "20:30" 
-  },
-  { 
-    id: 22, 
-    customer: "Normal User", 
-    items: [
-      { name: "Mac & Cheese Pasta", quantity: 2, price: 10.00 },
-      { name: "Chocolate Mousse", quantity: 1, price: 7.50 },
-    ],
-    totalPrice: 42.00, 
-    status: "completed", 
-    time: "17:30" 
-  },
-];
 
 const statusConfig = {
   incoming: {
@@ -116,16 +39,45 @@ const statusConfig = {
 };
 
 export default function TodaysOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(mockOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [draggedOrder, setDraggedOrder] = useState<Order | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const updateOrderStatus = (orderId: number, newStatus: "incoming" | "ready" | "completed") => {
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId ? { ...order, status: newStatus } : order
-      )
-    );
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await restaurantApi.getOrders();
+      if (response.status && response.data.orders) {
+        // Filter for today's orders (exclude cancelled)
+        const today = new Date().toDateString();
+        const todayOrders = response.data.orders.filter((order: Order) => {
+          const orderDate = new Date(order.created_at).toDateString();
+          return orderDate === today && 
+                 order.status !== "cancelled" && 
+                 (order.status === "incoming" || order.status === "ready" || order.status === "completed");
+        });
+        setOrders(todayOrders);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load orders");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateOrderStatus = async (orderId: number, newStatus: "incoming" | "ready" | "completed") => {
+    try {
+      await restaurantApi.updateOrderStatus(orderId, newStatus);
+      toast.success("Order status updated");
+      fetchOrders();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update order status");
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, order: Order) => {
@@ -156,7 +108,7 @@ export default function TodaysOrdersPage() {
     return orders.filter((order) => order.status === status);
   };
 
-  const getNextStatus = (currentStatus: "incoming" | "ready" | "completed") => {
+  const getNextStatus = (currentStatus: "incoming" | "ready" | "completed" | "cancelled"): "ready" | "completed" | null => {
     if (currentStatus === "incoming") return "ready";
     if (currentStatus === "ready") return "completed";
     return null;
@@ -219,9 +171,16 @@ export default function TodaysOrdersPage() {
 
                 {/* Orders List */}
                 <div className="flex-1 p-4 space-y-3 overflow-y-auto min-h-0">
-                  {columnOrders.length > 0 ? (
+                  {loading ? (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-muted-foreground">Loading orders...</p>
+                    </div>
+                  ) : columnOrders.length > 0 ? (
                     columnOrders.map((order) => {
-                      const nextStatus = getNextStatus(order.status);
+                      // Only show next status button for non-cancelled orders
+                      const nextStatus = order.status !== "cancelled" 
+                        ? getNextStatus(order.status as "incoming" | "ready" | "completed")
+                        : null;
                       return (
                         <div
                           key={order.id}
@@ -241,30 +200,38 @@ export default function TodaysOrdersPage() {
                             <div className="space-y-1.5">
                               <div className="flex items-center justify-between">
                                 <p className="font-semibold text-foreground">Order #{order.id}</p>
-                                <p className="text-xs text-muted-foreground">{order.time}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {order.pickup_time || new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
                               </div>
-                              <p className="text-sm text-muted-foreground">{order.customer}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {order.user?.name || "Customer"}
+                              </p>
                             </div>
 
                             {/* Order Items */}
                             <div className="space-y-1.5">
-                              {order.items.map((item, index) => (
-                                <div key={index} className="flex items-center justify-between text-sm">
-                                  <span className="text-foreground">
-                                    {item.quantity}x {item.name}
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    ${item.price.toFixed(2)}
-                                  </span>
-                                </div>
-                              ))}
+                              {order.items && order.items.length > 0 ? (
+                                order.items.map((item, index) => (
+                                  <div key={index} className="flex items-center justify-between text-sm">
+                                    <span className="text-foreground">
+                                      {item.quantity}x {item.dish?.name || "Item"}
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      ${item.price_at_order_time.toFixed(2)}
+                                    </span>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-xs text-muted-foreground">No items</p>
+                              )}
                             </div>
 
                             {/* Total */}
                             <div className="flex items-center justify-between pt-2 border-t border-border">
                               <span className="font-semibold text-foreground">Total</span>
                               <span className="font-bold text-primary">
-                                ${order.totalPrice.toFixed(2)}
+                                ${order.total_price.toFixed(2)}
                               </span>
                             </div>
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -26,29 +26,16 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Search, Filter, Eye, ChevronDown, Calendar } from "lucide-react";
+import { restaurantApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface Order {
   id: number;
-  customer: string;
-  totalPrice: number;
-  status: "incoming" | "ready" | "completed";
-  date: string;
+  user?: { name: string; email: string };
+  total_price: number;
+  status: "incoming" | "ready" | "completed" | "cancelled";
+  created_at: string;
 }
-
-const mockOrders: Order[] = [
-  { id: 6, customer: "Normal User", totalPrice: 12.50, status: "incoming", date: "29/11/2025 21:45" },
-  { id: 18, customer: "Normal User", totalPrice: 25.00, status: "completed", date: "29/11/2025 20:30" },
-  { id: 10, customer: "Normal User", totalPrice: 35.50, status: "ready", date: "29/11/2025 19:15" },
-  { id: 8, customer: "Normal User", totalPrice: 18.75, status: "ready", date: "29/11/2025 18:00" },
-  { id: 22, customer: "Normal User", totalPrice: 42.00, status: "completed", date: "29/11/2025 17:30" },
-  { id: 5, customer: "Normal User", totalPrice: 15.25, status: "incoming", date: "29/11/2025 16:45" },
-  { id: 3, customer: "Normal User", totalPrice: 28.50, status: "incoming", date: "29/11/2025 15:20" },
-  { id: 1, customer: "Normal User", totalPrice: 20.00, status: "incoming", date: "29/11/2025 14:10" },
-  { id: 15, customer: "Normal User", totalPrice: 87.50, status: "completed", date: "29/11/2025 13:00" },
-  { id: 19, customer: "Normal User", totalPrice: 55.75, status: "completed", date: "29/11/2025 12:30" },
-  { id: 2, customer: "Normal User", totalPrice: 30.00, status: "completed", date: "29/11/2025 11:15" },
-  { id: 4, customer: "Normal User", totalPrice: 22.50, status: "completed", date: "29/11/2025 10:00" },
-];
 
 const statusConfig = {
   incoming: { 
@@ -66,6 +53,7 @@ const statusConfig = {
 };
 
 export default function RestaurantOrdersPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [orderIdFilter, setOrderIdFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -73,7 +61,26 @@ export default function RestaurantOrdersPage() {
   const [untilDate, setUntilDate] = useState<Date | undefined>();
   const [filterOpen, setFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
   const itemsPerPage = 10;
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await restaurantApi.getOrders();
+      if (response.status && response.data.orders) {
+        setOrders(response.data.orders);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load orders");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const activeFiltersCount = [
     orderIdFilter,
@@ -82,15 +89,23 @@ export default function RestaurantOrdersPage() {
     untilDate,
   ].filter(Boolean).length;
 
-  const filteredOrders = mockOrders.filter((order) => {
+  const filteredOrders = orders.filter((order) => {
     const matchesSearch = searchQuery === "" || 
       order.id.toString().includes(searchQuery) ||
-      order.customer.toLowerCase().includes(searchQuery.toLowerCase());
+      order.user?.name.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesOrderId = !orderIdFilter || order.id.toString() === orderIdFilter;
     const matchesStatus = statusFilter === "all" || order.status === statusFilter;
     
-    return matchesSearch && matchesOrderId && matchesStatus;
+    // Date filtering
+    let matchesDate = true;
+    if (fromDate || untilDate) {
+      const orderDate = new Date(order.created_at);
+      if (fromDate && orderDate < fromDate) matchesDate = false;
+      if (untilDate && orderDate > untilDate) matchesDate = false;
+    }
+    
+    return matchesSearch && matchesOrderId && matchesStatus && matchesDate;
   });
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
@@ -277,7 +292,13 @@ export default function RestaurantOrdersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {paginatedOrders.length > 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-muted-foreground">
+                      Loading orders...
+                    </td>
+                  </tr>
+                ) : paginatedOrders.length > 0 ? (
                   paginatedOrders.map((order, index) => {
                     const status = statusConfig[order.status];
                     return (
@@ -290,10 +311,10 @@ export default function RestaurantOrdersPage() {
                           {order.id}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                          {order.customer}
+                          {order.user?.name || "Customer"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                          ${order.totalPrice.toFixed(2)}
+                          ${order.total_price.toFixed(2)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Badge className={cn("font-medium text-xs uppercase tracking-wide", status.className)}>
@@ -301,7 +322,7 @@ export default function RestaurantOrdersPage() {
                           </Badge>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                          {order.date}
+                          {new Date(order.created_at).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Button 

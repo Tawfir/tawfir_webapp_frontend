@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { ArrowLeft, Clock } from "lucide-react";
+import { restaurantApi, userApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface DishFormData {
   name: string;
@@ -36,8 +38,6 @@ interface DishFormData {
   quantity: number;
   categories: string[];
 }
-
-const mockCategories = ["Burgers", "Sandwiches", "Drinks", "Desserts", "Hot Meals", "Salads"];
 
 export default function CreateDishPage() {
   const navigate = useNavigate();
@@ -53,6 +53,23 @@ export default function CreateDishPage() {
     quantity: 0,
     categories: [],
   });
+  const [availableCategories, setAvailableCategories] = useState<Array<{ id: number; name: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await userApi.getCategories();
+      if (response.status && response.data.categories) {
+        setAvailableCategories(response.data.categories);
+      }
+    } catch (error: any) {
+      toast.error("Failed to load categories");
+    }
+  };
 
   const handleInputChange = (field: keyof DishFormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -67,10 +84,51 @@ export default function CreateDishPage() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted:", formData);
-    navigate("/restaurant/menu");
+    
+    if (formData.categories.length === 0) {
+      toast.error("Please select at least one category");
+      return;
+    }
+
+    if (formData.sellingPrice <= 0) {
+      toast.error("Selling price must be greater than 0");
+      return;
+    }
+
+    if (formData.quantity <= 0) {
+      toast.error("Quantity must be greater than 0");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Map category names to IDs
+      const categoryIds = formData.categories
+        .map(catName => availableCategories.find(c => c.name === catName)?.id)
+        .filter((id): id is number => id !== undefined);
+
+      await restaurantApi.createDish({
+        name: formData.name,
+        price: formData.originalPrice || formData.sellingPrice,
+        discounted_price: formData.originalPrice > formData.sellingPrice ? formData.sellingPrice : undefined,
+        co2_saved: formData.co2Saved || undefined,
+        description: formData.description || undefined,
+        pickup_time: formData.pickupTime || undefined,
+        availability_method: formData.availabilityMethod,
+        quantity: formData.quantity,
+        food_category_ids: categoryIds,
+      });
+
+      toast.success("Dish created successfully!");
+      navigate("/restaurant/menu");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create dish");
+    } finally {
+      setLoading(false);
+    }
   };
 
 
@@ -302,15 +360,15 @@ export default function CreateDishPage() {
                           <SelectValue placeholder="Select an option" />
                         </SelectTrigger>
                         <SelectContent>
-                          {mockCategories
-                            .filter((cat) => !formData.categories.includes(cat))
+                          {availableCategories
+                            .filter((cat) => !formData.categories.includes(cat.name))
                             .map((category) => (
                               <SelectItem
-                                key={category}
-                                value={category}
+                                key={category.id}
+                                value={category.name}
                                 className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
                               >
-                                {category}
+                                {category.name}
                               </SelectItem>
                             ))}
                         </SelectContent>
@@ -340,7 +398,9 @@ export default function CreateDishPage() {
           </div>
 
           <div className="flex items-center gap-4 pt-6">
-            <Button type="submit">Create</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Creating..." : "Create"}
+            </Button>
             <Button type="button" variant="outline" asChild>
               <Link to="/restaurant/menu">Cancel</Link>
             </Button>

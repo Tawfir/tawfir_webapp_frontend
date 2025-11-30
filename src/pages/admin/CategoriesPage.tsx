@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -20,74 +20,43 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Utensils, Store } from "lucide-react";
+import { userApi } from "@/services/api";
+import { toast } from "sonner";
 
 interface FoodCategory {
   id: number;
   name: string;
-  slug: string;
-  cover?: string;
+  slug?: string;
   image?: string;
-  dishesCount: number;
-  restaurantsCount: number;
+  cover?: string;
 }
 
-const mockCategories: FoodCategory[] = [
-  { 
-    id: 1, 
-    name: "Burgers", 
-    slug: "burgers", 
-    dishesCount: 2, 
-    restaurantsCount: 0,
-    cover: "/placeholder.svg"
-  },
-  { 
-    id: 2, 
-    name: "Salads & Bowls", 
-    slug: "salads-bowls", 
-    dishesCount: 2, 
-    restaurantsCount: 0,
-    cover: "/placeholder.svg"
-  },
-  { 
-    id: 3, 
-    name: "Drinks", 
-    slug: "drinks", 
-    dishesCount: 2, 
-    restaurantsCount: 0,
-    cover: "/placeholder.svg"
-  },
-  { 
-    id: 4, 
-    name: "Desserts", 
-    slug: "desserts", 
-    dishesCount: 2, 
-    restaurantsCount: 0,
-    cover: "/placeholder.svg"
-  },
-  { 
-    id: 5, 
-    name: "Hot Meals", 
-    slug: "hot-meals", 
-    dishesCount: 2, 
-    restaurantsCount: 0,
-    cover: "/placeholder.svg"
-  },
-  { 
-    id: 6, 
-    name: "Sandwiches & Wraps", 
-    slug: "sandwiches-wraps", 
-    dishesCount: 2, 
-    restaurantsCount: 0,
-    cover: "/placeholder.svg"
-  },
-];
-
 export default function CategoriesPage() {
+  const [categories, setCategories] = useState<FoodCategory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const filteredCategories = mockCategories.filter((category) =>
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+      const response = await userApi.getCategories();
+      if (response.status && response.data.categories) {
+        setCategories(response.data.categories);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load categories");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredCategories = categories.filter((category) =>
     category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    category.slug.toLowerCase().includes(searchQuery.toLowerCase())
+    (category.slug && category.slug.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -134,8 +103,13 @@ export default function CategoriesPage() {
         </div>
 
         {/* Categories Grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredCategories.map((category, index) => (
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading categories...</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredCategories.map((category, index) => (
             <Link
               key={category.id}
               to={`/admin/categories/${category.id}/edit`}
@@ -144,9 +118,9 @@ export default function CategoriesPage() {
             >
               {/* Cover Image */}
               <div className="relative h-48 w-full overflow-hidden bg-muted">
-                {category.cover ? (
+                {category.image || category.cover ? (
                   <img
-                    src={category.cover}
+                    src={category.image || category.cover}
                     alt={category.name}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                   />
@@ -194,17 +168,11 @@ export default function CategoriesPage() {
                   </DropdownMenu>
                 </div>
 
-                {/* Stats */}
+                {/* Stats - Note: Counts would need to be calculated from API */}
                 <div className="flex items-center gap-4 text-sm">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Utensils className="h-4 w-4" />
-                    <span className="font-medium">{category.dishesCount}</span>
-                    <span className="text-xs">Dishes</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <Store className="h-4 w-4" />
-                    <span className="font-medium">{category.restaurantsCount}</span>
-                    <span className="text-xs">Restaurants</span>
+                    <span className="text-xs">Category</span>
                   </div>
                 </div>
               </div>
@@ -212,11 +180,12 @@ export default function CategoriesPage() {
               {/* Hover Gradient Border */}
               <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-primary opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             </Link>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Empty State */}
-        {filteredCategories.length === 0 && (
+        {!loading && filteredCategories.length === 0 && (
           <div className="rounded-xl border border-border bg-card p-12 text-center">
             <Utensils className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-sm font-medium text-foreground mb-1">No categories found</p>
