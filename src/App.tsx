@@ -19,6 +19,7 @@ import NewRestaurantPage from "./pages/admin/NewRestaurantPage";
 import OrdersPage from "./pages/admin/OrdersPage";
 import OrderViewPage from "./pages/admin/OrderViewPage";
 import CategoriesPage from "./pages/admin/CategoriesPage";
+import NewCategoryPage from "./pages/admin/NewCategoryPage";
 import EditCategoryPage from "./pages/admin/EditCategoryPage";
 import WithdrawalsPage from "./pages/admin/WithdrawalsPage";
 import UsersPage from "./pages/admin/UsersPage";
@@ -56,6 +57,7 @@ const App = () => (
           <Route path="/admin/restaurants/:id" element={<ViewRestaurantPage />} />
           <Route path="/admin/restaurants/:id/edit" element={<EditRestaurantPage />} />
           <Route path="/admin/categories" element={<CategoriesPage />} />
+          <Route path="/admin/categories/new" element={<NewCategoryPage />} />
           <Route path="/admin/categories/:id/edit" element={<EditCategoryPage />} />
           <Route path="/admin/withdrawals" element={<WithdrawalsPage />} />
           <Route path="/admin/users" element={<UsersPage />} />

@@ -63,11 +63,14 @@ export default function CreateDishPage() {
   const fetchCategories = async () => {
     try {
       const response = await userApi.getCategories();
-      if (response.status && response.data.categories) {
-        setAvailableCategories(response.data.categories);
+      if (response.status && response.data) {
+        // Backend returns categories as a direct array, not wrapped in { categories: [...] }
+        const categories = Array.isArray(response.data) ? response.data : response.data.categories || [];
+        setAvailableCategories(categories);
       }
     } catch (error: any) {
       toast.error("Failed to load categories");
+      console.error("Categories fetch error:", error);
     }
   };
 

@@ -194,7 +194,7 @@ export default function EditCategoryPage() {
                             <p className="text-sm text-muted-foreground">{dish.restaurant}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-foreground">${dish.price.toFixed(2)}</p>
+                            <p className="font-semibold text-foreground">${Number(dish.price).toFixed(2)}</p>
                           </div>
                         </div>
                       ))}

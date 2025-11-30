@@ -153,8 +153,8 @@ export default function OrderViewPage() {
                     <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-foreground">${(item.price * item.quantity).toFixed(2)}</p>
-                    <p className="text-sm text-muted-foreground">${item.price.toFixed(2)} each</p>
+                    <p className="font-semibold text-foreground">${(Number(item.price) * item.quantity).toFixed(2)}</p>
+                    <p className="text-sm text-muted-foreground">${Number(item.price).toFixed(2)} each</p>
                   </div>
                 </div>
               ))}
@@ -167,7 +167,7 @@ export default function OrderViewPage() {
                   <DollarSign className="h-5 w-5 text-primary" />
                   <p className="text-lg font-semibold text-foreground">Total Price</p>
                 </div>
-                <p className="text-2xl font-bold text-primary">${order.totalPrice.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-primary">${Number(order.totalPrice).toFixed(2)}</p>
               </div>
             </div>
           </div>

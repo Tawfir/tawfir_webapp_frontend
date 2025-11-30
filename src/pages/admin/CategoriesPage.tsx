@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Utensils, Store } from "lucide-react";
-import { userApi } from "@/services/api";
+import { adminApi } from "@/services/api";
 import { toast } from "sonner";
 
 interface FoodCategory {
@@ -29,6 +29,8 @@ interface FoodCategory {
   slug?: string;
   image?: string;
   cover?: string;
+  dishesCount?: number;
+  restaurantsCount?: number;
 }
 
 export default function CategoriesPage() {
@@ -43,8 +45,8 @@ export default function CategoriesPage() {
   const fetchCategories = async () => {
     try {
       setLoading(true);
-      const response = await userApi.getCategories();
-      if (response.status && response.data.categories) {
+      const response = await adminApi.getCategories();
+      if (response.status && response.data && response.data.categories) {
         setCategories(response.data.categories);
       }
     } catch (error: any) {
@@ -85,9 +87,11 @@ export default function CategoriesPage() {
               Manage food categories for the platform
             </p>
           </div>
-          <Button className="w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
-            New food category
+          <Button className="w-full sm:w-auto" asChild>
+            <Link to="/admin/categories/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New food category
+            </Link>
           </Button>
         </div>
 

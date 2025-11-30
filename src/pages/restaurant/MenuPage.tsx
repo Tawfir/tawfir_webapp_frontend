@@ -155,8 +155,8 @@ export default function MenuPage() {
         ) : filteredItems.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredItems.map((item, index) => {
-              const originalPrice = item.discounted_price ? item.price : null;
-              const sellingPrice = item.discounted_price || item.price;
+              const originalPrice = item.discounted_price ? Number(item.price) : null;
+              const sellingPrice = Number(item.discounted_price || item.price);
               const primaryCategory = item.categories?.[0]?.name || "Uncategorized";
               
               return (

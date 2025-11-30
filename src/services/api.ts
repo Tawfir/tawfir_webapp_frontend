@@ -365,6 +365,19 @@ export const adminApi = {
     return api.get('/admin/withdrawals');
   },
 
+  getCategories: async () => {
+    return api.get('/admin/categories');
+  },
+
+  createCategory: async (data: {
+    name: string;
+    slug?: string;
+    image?: string;
+    cover?: string;
+  }) => {
+    return api.post('/admin/categories', data);
+  },
+
   getStats: async () => {
     return api.get('/admin/stats');
   },
