@@ -314,7 +314,7 @@ export default function RestaurantOrdersPage() {
                           {order.user?.name || "Customer"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                          ${order.total_price.toFixed(2)}
+                          ${Number(order.total_price).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Badge className={cn("font-medium text-xs uppercase tracking-wide", status.className)}>

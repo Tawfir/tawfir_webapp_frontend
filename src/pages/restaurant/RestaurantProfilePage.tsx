@@ -86,7 +86,7 @@ export default function RestaurantProfilePage() {
           publicPhone: restaurant.public_phone || "",
           privatePhone: restaurant.private_phone || "",
           workingHours: Array.isArray(workingHours) ? workingHours : [],
-          foodCategoryIds: restaurant.categories?.map((c: any) => c.id) || [],
+          foodCategoryIds: restaurant.categories?.map((c: any) => Number(c.id)) || [],
           profilePic: restaurant.profile_pic || null,
           placePics: restaurant.place_pics || [],
           coverImage: restaurant.cover_image || null,
@@ -102,15 +102,23 @@ export default function RestaurantProfilePage() {
   const fetchCategories = async () => {
     try {
       const response = await userApi.getCategories();
-      if (response.status && response.data.categories) {
-        setAvailableCategories(response.data.categories);
+      if (response.status && response.data) {
+        // Backend returns categories as a direct array, not wrapped in { categories: [...] }
+        const categories = Array.isArray(response.data) ? response.data : response.data.categories || [];
+        // Ensure all category IDs are numbers for consistent comparison
+        const normalizedCategories = categories.map((cat: any) => ({
+          ...cat,
+          id: Number(cat.id)
+        }));
+        setAvailableCategories(normalizedCategories);
       }
     } catch (error: any) {
       toast.error("Failed to load categories");
+      console.error("Categories fetch error:", error);
     }
   };
 
-  const handleInputChange = (field: string, value: string | string[] | WorkingHour[]) => {
+  const handleInputChange = (field: string, value: string | string[] | WorkingHour[] | number[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -359,47 +367,6 @@ export default function RestaurantProfilePage() {
                       className="mt-1"
                     />
                   </div>
-                        <SelectItem
-                          value="manual"
-                          className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
-                        >
-                          Manual Bank Transfer
-                        </SelectItem>
-                        <SelectItem
-                          value="stripe"
-                          className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
-                        >
-                          Stripe Connect
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="publicPhone">
-                      Public Phone <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="publicPhone"
-                      value={formData.publicPhone}
-                      onChange={(e) => handleInputChange("publicPhone", e.target.value)}
-                      required
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="privatePhone">
-                      Private Phone <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="privatePhone"
-                      value={formData.privatePhone}
-                      onChange={(e) => handleInputChange("privatePhone", e.target.value)}
-                      required
-                      className="mt-1"
-                    />
-                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -499,7 +466,7 @@ export default function RestaurantProfilePage() {
                       </SelectTrigger>
                       <SelectContent>
                         {availableCategories
-                          .filter(cat => !formData.foodCategoryIds.includes(cat.id))
+                          .filter(cat => !formData.foodCategoryIds.includes(Number(cat.id)))
                           .map((category) => (
                             <SelectItem
                               key={category.id}
@@ -514,13 +481,14 @@ export default function RestaurantProfilePage() {
                     {formData.foodCategoryIds.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {formData.foodCategoryIds.map((id) => {
-                          const category = availableCategories.find((c) => c.id === id);
+                          // Ensure we compare IDs as numbers to avoid type mismatch
+                          const category = availableCategories.find((c) => Number(c.id) === Number(id));
                           return (
                             <div
                               key={id}
                               className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-sm"
                             >
-                              {category?.name || `Category ${id}`}
+                              <span>{category?.name || `Category ${id}`}</span>
                               <button
                                 type="button"
                                 onClick={() => {

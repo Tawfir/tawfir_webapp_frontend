@@ -22,7 +22,7 @@ export default function AdminLoginPage() {
     try {
       const response = await authApi.login(email, password);
       
-      if (response.status && response.data.user) {
+      if (response.status && response.data && response.data.user) {
         // Verify user is admin
         if (response.data.user.type !== 'admin') {
           toast.error("Access denied. Admin credentials required.");
@@ -31,9 +31,12 @@ export default function AdminLoginPage() {
         
         toast.success("Admin login successful!");
         navigate("/admin");
+      } else {
+        toast.error("Login failed. Please check your credentials.");
       }
     } catch (error: any) {
-      toast.error(error.message || "Login failed. Please check your credentials.");
+      const errorMessage = error.message || error.data?.message || "Login failed. Please check your credentials.";
+      toast.error(errorMessage);
       console.error("Admin login error:", error);
     } finally {
       setIsLoading(false);

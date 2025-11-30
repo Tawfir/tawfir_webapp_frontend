@@ -96,26 +96,40 @@ export default function RestaurantDashboard() {
       
       // Fetch dishes for surplus items count
       const dishesResponse = await restaurantApi.getDishes();
-      const dishes = dishesResponse.status ? dishesResponse.data.dishes : [];
-      const totalSurplusItems = dishes.reduce((sum: number, dish: any) => sum + (dish.quantity || 0), 0);
+      console.log('Dishes response:', dishesResponse);
+      const dishes = dishesResponse.status && dishesResponse.data ? (dishesResponse.data.dishes || dishesResponse.data) : [];
+      console.log('Dishes:', dishes);
+      // Ensure quantity is a number (PostgreSQL returns numeric as string)
+      const totalSurplusItems = Array.isArray(dishes) 
+        ? dishes.reduce((sum: number, dish: any) => sum + (Number(dish.quantity) || 0), 0)
+        : 0;
+      console.log('Total surplus items:', totalSurplusItems);
 
       // Fetch orders
       const ordersResponse = await restaurantApi.getOrders();
-      const allOrders = ordersResponse.status ? ordersResponse.data.orders : [];
+      console.log('Orders response:', ordersResponse);
+      const allOrders = ordersResponse.status && ordersResponse.data ? (ordersResponse.data.orders || ordersResponse.data) : [];
+      console.log('All orders:', allOrders);
       
       // Filter today's orders
-      const today = new Date().toDateString();
-      const todayOrders = allOrders.filter((order: Order) => {
-        const orderDate = new Date(order.created_at).toDateString();
-        return orderDate === today && order.status !== "cancelled";
-      });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayOrders = Array.isArray(allOrders) ? allOrders.filter((order: Order) => {
+        if (!order.created_at) return false;
+        const orderDate = new Date(order.created_at);
+        orderDate.setHours(0, 0, 0, 0);
+        return orderDate.getTime() === today.getTime() && order.status !== "cancelled";
+      }) : [];
+      console.log('Today:', today.toISOString());
+      console.log('Today orders:', todayOrders);
 
       // Get incoming orders (today only)
       const incoming = todayOrders.filter((o: Order) => o.status === "incoming").slice(0, 10);
 
       // Calculate stats from completed orders
       const completedOrders = allOrders.filter((o: Order) => o.status === "completed");
-      const revenueFromSurplus = completedOrders.reduce((sum: number, o: Order) => sum + (o.total_price || 0), 0);
+      // Ensure total_price is a number (PostgreSQL returns numeric as string)
+      const revenueFromSurplus = completedOrders.reduce((sum: number, o: Order) => sum + (Number(o.total_price) || 0), 0);
       const netEarnings = revenueFromSurplus * 0.925; // After 7.5% service fee
       
       // Calculate CO2 saved from completed orders
@@ -155,6 +169,7 @@ export default function RestaurantDashboard() {
         { status: "Completed", count: completedCount },
       ]);
     } catch (error: any) {
+      console.error("Dashboard fetch error:", error);
       toast.error(error.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
@@ -292,7 +307,7 @@ export default function RestaurantDashboard() {
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className="text-sm font-semibold text-foreground">${order.total_price.toFixed(2)}</span>
+                            <span className="text-sm font-semibold text-foreground">${Number(order.total_price).toFixed(2)}</span>
                             <Badge variant="outline" className={cn("font-medium text-xs uppercase tracking-wide", status.className)}>
                               {status.label}
                             </Badge>

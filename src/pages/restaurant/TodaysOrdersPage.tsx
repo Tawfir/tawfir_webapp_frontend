@@ -218,7 +218,7 @@ export default function TodaysOrdersPage() {
                                       {item.quantity}x {item.dish?.name || "Item"}
                                     </span>
                                     <span className="text-muted-foreground">
-                                      ${item.price_at_order_time.toFixed(2)}
+                                      ${Number(item.price_at_order_time).toFixed(2)}
                                     </span>
                                   </div>
                                 ))
@@ -231,7 +231,7 @@ export default function TodaysOrdersPage() {
                             <div className="flex items-center justify-between pt-2 border-t border-border">
                               <span className="font-semibold text-foreground">Total</span>
                               <span className="font-bold text-primary">
-                                ${order.total_price.toFixed(2)}
+                                ${Number(order.total_price).toFixed(2)}
                               </span>
                             </div>
 
