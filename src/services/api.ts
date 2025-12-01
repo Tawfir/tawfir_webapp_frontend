@@ -233,6 +233,23 @@ export const authApi = {
     return api.get<{ user: any }>('/auth/user');
   },
 
+  requestPasswordResetCode: async (email: string) => {
+    return api.post('/auth/request-password-reset-code', { email });
+  },
+
+  checkResetCode: async (email: string, code: string) => {
+    return api.post('/auth/check-reset-code', { email, code });
+  },
+
+  resetPasswordWithCode: async (email: string, code: string, password: string, password_confirmation: string) => {
+    return api.post('/auth/reset-password-with-code', {
+      email,
+      code,
+      password,
+      password_confirmation,
+    });
+  },
+
   updateProfile: async (data: { name?: string; phone?: string }) => {
     return api.put<{ user: any }>('/auth/update-profile', data);
   },

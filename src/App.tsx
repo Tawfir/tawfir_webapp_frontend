@@ -9,6 +9,9 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/auth/LoginPage";
 import AdminLoginPage from "./pages/auth/AdminLoginPage";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
+import VerifyCodePage from "./pages/auth/VerifyCodePage";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 
 // Admin Pages
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -47,6 +50,10 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/admin/login" element={<AdminLoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/verify-code" element={<VerifyCodePage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminDashboard />} />
