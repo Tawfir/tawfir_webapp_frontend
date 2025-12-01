@@ -22,7 +22,7 @@ interface Order {
   user?: { name: string };
   items?: Array<{ dish: { name: string } }>;
   total_price: number;
-  status: "incoming" | "ready" | "completed";
+  status: "incoming" | "ready" | "completed" | "cancelled";
   created_at: string;
   pickup_time: string;
 }
@@ -85,9 +85,7 @@ export default function RestaurantDashboard() {
 
       // Fetch orders
       const ordersResponse = await restaurantApi.getOrders();
-      console.log('Orders response:', ordersResponse);
       const allOrders = ordersResponse.status && ordersResponse.data ? (ordersResponse.data.orders || ordersResponse.data) : [];
-      console.log('All orders:', allOrders);
       
       // Filter today's orders
       const today = new Date();
@@ -98,8 +96,6 @@ export default function RestaurantDashboard() {
         orderDate.setHours(0, 0, 0, 0);
         return orderDate.getTime() === today.getTime() && order.status !== "cancelled";
       }) : [];
-      console.log('Today:', today.toISOString());
-      console.log('Today orders:', todayOrders);
 
       // Get incoming orders (today only)
       const incoming = todayOrders.filter((o: Order) => o.status === "incoming").slice(0, 10);

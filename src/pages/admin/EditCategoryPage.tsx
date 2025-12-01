@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Utensils, Store, DollarSign } from "lucide-react";
+import { ArrowLeft, Utensils, Store, DollarSign, Trash2 } from "lucide-react";
 import { adminApi } from "@/services/api";
 import { toast } from "sonner";
 
@@ -61,6 +61,7 @@ export default function EditCategoryPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [deleting, setDeleting] = useState(false);
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
 
@@ -151,6 +152,25 @@ export default function EditCategoryPage() {
       toast.error(error.message || "Failed to update category");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    
+    if (!window.confirm(`Are you sure you want to delete "${formData.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      await adminApi.deleteCategory(parseInt(id));
+      toast.success("Category deleted successfully");
+      navigate("/admin/categories");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete category");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -349,6 +369,16 @@ export default function EditCategoryPage() {
             </Button>
             <Button type="button" variant="outline" asChild>
               <Link to="/admin/categories">Cancel</Link>
+            </Button>
+            <Button 
+              type="button" 
+              variant="destructive" 
+              onClick={handleDelete}
+              disabled={deleting || fetching}
+              className="ml-auto"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {deleting ? "Deleting..." : "Delete Category"}
             </Button>
           </div>
         </form>

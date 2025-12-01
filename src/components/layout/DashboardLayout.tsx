@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { adminApi, restaurantApi } from "@/services/api";
 import {
   Collapsible,
   CollapsibleContent,
@@ -82,6 +83,8 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, portalType }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [userInfo, setUserInfo] = useState<{ name: string; email: string } | null>(null);
+  const [loading, setLoading] = useState(true);
   
   // Load persisted section state from localStorage
   const getInitialSections = (): Record<string, boolean> => {
@@ -113,6 +116,59 @@ export function DashboardLayout({ children, portalType }: DashboardLayoutProps) 
   
   const portalTitle = portalType === "admin" ? "Tawfir Admin Portal" : "Restaurant Portal";
   const PortalIcon = portalType === "admin" ? ChefHat : Store;
+
+  // Fetch user information based on portal type
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        setLoading(true);
+        if (portalType === "admin") {
+          const response = await adminApi.getAdmin();
+          if (response.status && response.data?.user) {
+            setUserInfo({
+              name: response.data.user.name || "Admin User",
+              email: response.data.user.email || "admin@tawfir.com",
+            });
+          } else {
+            // Fallback for admin
+            setUserInfo({
+              name: "Admin User",
+              email: "admin@tawfir.com",
+            });
+          }
+        } else {
+          // For restaurant, fetch restaurant data which includes owner info
+          const response = await restaurantApi.getRestaurant();
+          if (response.status && response.data) {
+            // Get owner info from restaurant data
+            const ownerName = response.data.owner_name || response.data.name || "Restaurant User";
+            const ownerEmail = response.data.owner_email || "";
+            setUserInfo({
+              name: ownerName,
+              email: ownerEmail,
+            });
+          } else {
+            // Fallback for restaurant
+            setUserInfo({
+              name: "Restaurant User",
+              email: "",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch user info:", error);
+        // Fallback to defaults
+        setUserInfo({
+          name: portalType === "admin" ? "Admin User" : "Restaurant User",
+          email: portalType === "admin" ? "admin@tawfir.com" : "",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserInfo();
+  }, [portalType]);
 
   // Persist section state to localStorage whenever it changes
   useEffect(() => {
@@ -334,14 +390,16 @@ export function DashboardLayout({ children, portalType }: DashboardLayoutProps) 
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
                   <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">AU</span>
+                    <span className="text-sm font-semibold text-primary">
+                      {loading ? "..." : userInfo?.name ? userInfo.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : portalType === "admin" ? "AU" : "RU"}
+                    </span>
                   </div>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-2 py-1.5">
-                  <p className="text-sm font-medium">Admin User</p>
-                  <p className="text-xs text-muted-foreground">admin@tawfir.com</p>
+                  <p className="text-sm font-medium">{loading ? "Loading..." : userInfo?.name || (portalType === "admin" ? "Admin User" : "Restaurant User")}</p>
+                  <p className="text-xs text-muted-foreground">{loading ? "" : userInfo?.email || (portalType === "admin" ? "admin@tawfir.com" : "")}</p>
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={toggleDarkMode}>

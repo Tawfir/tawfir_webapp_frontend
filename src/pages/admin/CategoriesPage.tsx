@@ -60,6 +60,20 @@ export default function CategoriesPage() {
     (category.slug && category.slug.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const handleDelete = async (categoryId: number, categoryName: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${categoryName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await adminApi.deleteCategory(categoryId);
+      toast.success("Category deleted successfully");
+      fetchCategories(); // Refresh the list
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete category");
+    }
+  };
+
   return (
     <DashboardLayout portalType="admin">
       <div className="space-y-6">
@@ -161,7 +175,7 @@ export default function CategoriesPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          // Handle delete
+                          handleDelete(category.id, category.name);
                         }}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />

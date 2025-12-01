@@ -302,6 +302,8 @@ export const restaurantApi = {
     private_phone?: string;
     working_hours?: any;
     food_category_ids?: number[];
+    owner_name?: string;
+    owner_email?: string;
     profile_pic?: File;
     cover_image?: File;
     place_pics?: File[];
@@ -314,6 +316,8 @@ export const restaurantApi = {
     if (data.public_phone) formData.append('public_phone', data.public_phone);
     if (data.private_phone) formData.append('private_phone', data.private_phone);
     if (data.working_hours) formData.append('working_hours', JSON.stringify(data.working_hours));
+    if (data.owner_name) formData.append('owner_name', data.owner_name);
+    if (data.owner_email) formData.append('owner_email', data.owner_email);
     if (data.food_category_ids) formData.append('food_category_ids', JSON.stringify(data.food_category_ids));
     if (data.profile_pic) formData.append('profile_pic', data.profile_pic);
     if (data.cover_image) formData.append('cover_image', data.cover_image);
@@ -450,6 +454,92 @@ export const adminApi = {
     return api.get('/admin/restaurants');
   },
 
+  createRestaurant: async (data: {
+    restaurant_name: string;
+    address: string;
+    lat: number;
+    lng: number;
+    public_phone?: string;
+    private_phone?: string;
+    working_hours?: Record<string, { open: string; close: string }>;
+    food_category_ids?: number[];
+    status?: 'pending' | 'approved' | 'rejected';
+    is_featured?: boolean;
+    owner_email: string;
+    owner_name: string;
+    owner_password: string;
+    profile_pic?: File;
+    cover_image?: File;
+    place_pics?: File[];
+  }) => {
+    const formData = new FormData();
+    formData.append('restaurant_name', data.restaurant_name);
+    formData.append('address', data.address);
+    formData.append('lat', data.lat.toString());
+    formData.append('lng', data.lng.toString());
+    if (data.public_phone) formData.append('public_phone', data.public_phone);
+    if (data.private_phone) formData.append('private_phone', data.private_phone);
+    if (data.working_hours) formData.append('working_hours', JSON.stringify(data.working_hours));
+    if (data.food_category_ids) formData.append('food_category_ids', JSON.stringify(data.food_category_ids));
+    if (data.status) formData.append('status', data.status);
+    if (data.is_featured !== undefined) formData.append('is_featured', data.is_featured.toString());
+    formData.append('owner_email', data.owner_email);
+    formData.append('owner_name', data.owner_name);
+    formData.append('owner_password', data.owner_password);
+    if (data.profile_pic) formData.append('profile_pic', data.profile_pic);
+    if (data.cover_image) formData.append('cover_image', data.cover_image);
+    if (data.place_pics) {
+      data.place_pics.forEach((file) => formData.append('place_pics', file));
+    }
+    return api.post('/admin/restaurants', formData);
+  },
+
+  getRestaurant: async (id: number) => {
+    return api.get(`/admin/restaurants/${id}`);
+  },
+
+  deleteRestaurant: async (id: number) => {
+    return api.delete(`/admin/restaurants/${id}`);
+  },
+
+  updateRestaurant: async (id: number, data: {
+    restaurant_name?: string;
+    address?: string;
+    lat?: number;
+    lng?: number;
+    public_phone?: string;
+    private_phone?: string;
+    working_hours?: Record<string, { open: string; close: string }>;
+    food_category_ids?: number[];
+    status?: 'pending' | 'approved' | 'rejected';
+    is_featured?: boolean;
+    owner_name?: string;
+    owner_email?: string;
+    profile_pic?: File;
+    cover_image?: File;
+    place_pics?: File[];
+  }) => {
+    const formData = new FormData();
+    if (data.restaurant_name) formData.append('restaurant_name', data.restaurant_name);
+    if (data.address) formData.append('address', data.address);
+    if (data.lat !== undefined) formData.append('lat', data.lat.toString());
+    if (data.lng !== undefined) formData.append('lng', data.lng.toString());
+    if (data.public_phone) formData.append('public_phone', data.public_phone);
+    if (data.private_phone) formData.append('private_phone', data.private_phone);
+    if (data.working_hours) formData.append('working_hours', JSON.stringify(data.working_hours));
+    if (data.food_category_ids) formData.append('food_category_ids', JSON.stringify(data.food_category_ids));
+    if (data.status) formData.append('status', data.status);
+    if (data.is_featured !== undefined) formData.append('is_featured', data.is_featured.toString());
+    if (data.owner_name) formData.append('owner_name', data.owner_name);
+    if (data.owner_email) formData.append('owner_email', data.owner_email);
+    if (data.profile_pic) formData.append('profile_pic', data.profile_pic);
+    if (data.cover_image) formData.append('cover_image', data.cover_image);
+    if (data.place_pics) {
+      data.place_pics.forEach((file) => formData.append('place_pics', file));
+    }
+    return api.put(`/admin/restaurants/${id}`, formData);
+  },
+
   getOrders: async () => {
     return api.get('/admin/orders');
   },
@@ -488,6 +578,10 @@ export const adminApi = {
     if (data.slug) formData.append('slug', data.slug);
     if (data.image) formData.append('image', data.image);
     return api.put(`/admin/categories/${id}`, formData);
+  },
+
+  deleteCategory: async (id: number) => {
+    return api.delete(`/admin/categories/${id}`);
   },
 
   deleteCategoryImage: async (id: number) => {
