@@ -28,7 +28,6 @@ interface FoodCategory {
   name: string;
   slug?: string;
   image?: string;
-  cover?: string;
   dishesCount?: number;
   restaurantsCount?: number;
 }
@@ -120,11 +119,11 @@ export default function CategoriesPage() {
               className="group relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 animate-scale-in cursor-pointer block"
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              {/* Cover Image */}
+              {/* Category Image */}
               <div className="relative h-48 w-full overflow-hidden bg-muted">
-                {category.image || category.cover ? (
+                {category.image ? (
                   <img
-                    src={category.image || category.cover}
+                    src={category.image}
                     alt={category.name}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                   />

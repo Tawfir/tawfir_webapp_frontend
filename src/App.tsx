@@ -34,6 +34,7 @@ import MenuPage from "./pages/restaurant/MenuPage";
 import CreateDishPage from "./pages/restaurant/CreateDishPage";
 import EditDishPage from "./pages/restaurant/EditDishPage";
 import RestaurantOrdersPage from "./pages/restaurant/RestaurantOrdersPage";
+import RestaurantOrderViewPage from "./pages/restaurant/RestaurantOrderViewPage";
 import TodaysOrdersPage from "./pages/restaurant/TodaysOrdersPage";
 import RestaurantProfilePage from "./pages/restaurant/RestaurantProfilePage";
 
@@ -77,6 +78,7 @@ const App = () => (
           <Route path="/restaurant/menu/:id/edit" element={<EditDishPage />} />
           <Route path="/restaurant/orders" element={<RestaurantOrdersPage />} />
           <Route path="/restaurant/orders/today" element={<TodaysOrdersPage />} />
+          <Route path="/restaurant/orders/:id" element={<RestaurantOrderViewPage />} />
           <Route path="/restaurant/profile" element={<RestaurantProfilePage />} />
 
           {/* Catch-all */}

@@ -70,8 +70,11 @@ async function apiRequest<T = any>(
   const token = getAuthToken();
   const url = getApiEndpoint(endpoint);
 
+  // Check if body is FormData - if so, don't set Content-Type (browser will set it with boundary)
+  const isFormData = options.body instanceof FormData;
+
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(!isFormData && { 'Content-Type': 'application/json' }), // Only set JSON content-type if NOT FormData
     ...options.headers,
   };
 
@@ -137,10 +140,13 @@ export const api = {
     body?: any,
     options?: RequestInit
   ): Promise<ApiResponse<T>> => {
+    // Check if body is FormData
+    const isFormData = body instanceof FormData;
     return apiRequest<T>(endpoint, {
       ...options,
       method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+      headers: isFormData ? {} : { 'Content-Type': 'application/json' },
     });
   },
 
@@ -152,10 +158,13 @@ export const api = {
     body?: any,
     options?: RequestInit
   ): Promise<ApiResponse<T>> => {
+    // Check if body is FormData
+    const isFormData = body instanceof FormData;
     return apiRequest<T>(endpoint, {
       ...options,
       method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+      headers: isFormData ? {} : { 'Content-Type': 'application/json' },
     });
   },
 
@@ -293,12 +302,35 @@ export const restaurantApi = {
     private_phone?: string;
     working_hours?: any;
     food_category_ids?: number[];
+    profile_pic?: File;
+    cover_image?: File;
+    place_pics?: File[];
   }) => {
-    return api.put('/restaurant', data);
+    const formData = new FormData();
+    if (data.restaurant_name) formData.append('restaurant_name', data.restaurant_name);
+    if (data.address) formData.append('address', data.address);
+    if (data.lat !== undefined) formData.append('lat', data.lat.toString());
+    if (data.lng !== undefined) formData.append('lng', data.lng.toString());
+    if (data.public_phone) formData.append('public_phone', data.public_phone);
+    if (data.private_phone) formData.append('private_phone', data.private_phone);
+    if (data.working_hours) formData.append('working_hours', JSON.stringify(data.working_hours));
+    if (data.food_category_ids) formData.append('food_category_ids', JSON.stringify(data.food_category_ids));
+    if (data.profile_pic) formData.append('profile_pic', data.profile_pic);
+    if (data.cover_image) formData.append('cover_image', data.cover_image);
+    if (data.place_pics && data.place_pics.length > 0) {
+      data.place_pics.forEach((file) => {
+        formData.append('place_pics', file);
+      });
+    }
+    return api.put('/restaurant', formData);
   },
 
   getDishes: async () => {
     return api.get('/restaurant/dishes');
+  },
+
+  getDish: async (id: number) => {
+    return api.get(`/restaurant/dishes/${id}`);
   },
 
   createDish: async (data: {
@@ -311,8 +343,20 @@ export const restaurantApi = {
     availability_method?: string;
     quantity: number;
     food_category_ids: number[];
+    image?: File;
   }) => {
-    return api.post('/restaurant/dishes', data);
+    const formData = new FormData();
+    formData.append('name', data.name);
+    formData.append('price', data.price.toString());
+    if (data.discounted_price !== undefined) formData.append('discounted_price', data.discounted_price.toString());
+    if (data.co2_saved !== undefined) formData.append('co2_saved', data.co2_saved.toString());
+    if (data.description) formData.append('description', data.description);
+    if (data.pickup_time) formData.append('pickup_time', data.pickup_time);
+    if (data.availability_method) formData.append('availability_method', data.availability_method);
+    formData.append('quantity', data.quantity.toString());
+    formData.append('food_category_ids', JSON.stringify(data.food_category_ids));
+    if (data.image) formData.append('image', data.image);
+    return api.post('/restaurant/dishes', formData);
   },
 
   updateDish: async (id: number, data: {
@@ -325,12 +369,40 @@ export const restaurantApi = {
     availability_method?: string;
     quantity?: number;
     food_category_ids?: number[];
+    image?: File;
   }) => {
-    return api.put(`/restaurant/dishes/${id}`, data);
+    const formData = new FormData();
+    if (data.name) formData.append('name', data.name);
+    if (data.price !== undefined) formData.append('price', data.price.toString());
+    if (data.discounted_price !== undefined) formData.append('discounted_price', data.discounted_price.toString());
+    if (data.co2_saved !== undefined) formData.append('co2_saved', data.co2_saved.toString());
+    if (data.description) formData.append('description', data.description);
+    if (data.pickup_time) formData.append('pickup_time', data.pickup_time);
+    if (data.availability_method) formData.append('availability_method', data.availability_method);
+    if (data.quantity !== undefined) formData.append('quantity', data.quantity.toString());
+    if (data.food_category_ids) formData.append('food_category_ids', JSON.stringify(data.food_category_ids));
+    if (data.image) formData.append('image', data.image);
+    return api.put(`/restaurant/dishes/${id}`, formData);
   },
 
   deleteDish: async (id: number) => {
     return api.delete(`/restaurant/dishes/${id}`);
+  },
+
+  deleteDishImage: async (id: number) => {
+    return api.delete(`/restaurant/dishes/${id}/image`);
+  },
+
+  deleteProfilePic: async () => {
+    return api.delete('/restaurant/profile-pic');
+  },
+
+  deleteCoverImage: async () => {
+    return api.delete('/restaurant/cover-image');
+  },
+
+  deletePlacePic: async (index: number) => {
+    return api.delete(`/restaurant/place-pics/${index}`);
   },
 
   getOrders: async () => {
@@ -339,6 +411,10 @@ export const restaurantApi = {
 
   getOrder: async (id: number) => {
     return api.get(`/restaurant/orders/${id}`);
+  },
+
+  getChartData: async (type: 'co2' | 'orders') => {
+    return api.get(`/restaurant/stats/chart?type=${type}`);
   },
 
   updateOrderStatus: async (id: number, status: 'incoming' | 'ready' | 'completed' | 'cancelled') => {
@@ -386,17 +462,44 @@ export const adminApi = {
     return api.get('/admin/categories');
   },
 
+  getCategory: async (id: number) => {
+    return api.get(`/admin/categories/${id}`);
+  },
+
   createCategory: async (data: {
     name: string;
     slug?: string;
-    image?: string;
-    cover?: string;
+    image?: File;
   }) => {
-    return api.post('/admin/categories', data);
+    const formData = new FormData();
+    formData.append('name', data.name);
+    if (data.slug) formData.append('slug', data.slug);
+    if (data.image) formData.append('image', data.image);
+    return api.post('/admin/categories', formData);
+  },
+
+  updateCategory: async (id: number, data: {
+    name?: string;
+    slug?: string;
+    image?: File;
+  }) => {
+    const formData = new FormData();
+    if (data.name) formData.append('name', data.name);
+    if (data.slug) formData.append('slug', data.slug);
+    if (data.image) formData.append('image', data.image);
+    return api.put(`/admin/categories/${id}`, formData);
+  },
+
+  deleteCategoryImage: async (id: number) => {
+    return api.delete(`/admin/categories/${id}/image`);
   },
 
   getStats: async () => {
     return api.get('/admin/stats');
+  },
+
+  getChartData: async (type: 'co2' | 'orders') => {
+    return api.get(`/admin/stats/chart?type=${type}`);
   },
 };
 

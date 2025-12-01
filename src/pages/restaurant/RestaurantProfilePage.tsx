@@ -60,6 +60,9 @@ export default function RestaurantProfilePage() {
   const [availableCategories, setAvailableCategories] = useState<Array<{ id: number; name: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [placePicFiles, setPlacePicFiles] = useState<File[]>([]);
 
   useEffect(() => {
     fetchRestaurant();
@@ -88,7 +91,7 @@ export default function RestaurantProfilePage() {
           workingHours: Array.isArray(workingHours) ? workingHours : [],
           foodCategoryIds: restaurant.categories?.map((c: any) => Number(c.id)) || [],
           profilePic: restaurant.profile_pic || null,
-          placePics: restaurant.place_pics || [],
+          placePics: Array.isArray(restaurant.place_pics) ? restaurant.place_pics : (restaurant.place_pics ? [restaurant.place_pics] : []),
           coverImage: restaurant.cover_image || null,
         });
       }
@@ -127,21 +130,74 @@ export default function RestaurantProfilePage() {
       // For demo, convert File to URL. In real app, upload and get URL.
       const url = URL.createObjectURL(file);
       if (field === "placePics") {
+        setPlacePicFiles((prev) => [...prev, file]);
         setFormData((prev) => ({
           ...prev,
           placePics: [...prev.placePics, url],
         }));
+      } else if (field === "profilePic") {
+        setProfilePicFile(file);
+        setFormData((prev) => ({ ...prev, [field]: url }));
+      } else if (field === "coverImage") {
+        setCoverImageFile(file);
+        setFormData((prev) => ({ ...prev, [field]: url }));
       } else {
         setFormData((prev) => ({ ...prev, [field]: url }));
       }
+    } else {
+      if (field === "profilePic") {
+        setProfilePicFile(null);
+      } else if (field === "coverImage") {
+        setCoverImageFile(null);
+      }
+      setFormData((prev) => ({ ...prev, [field]: null }));
     }
   };
 
-  const handleRemovePlacePic = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      placePics: prev.placePics.filter((_, i) => i !== index),
-    }));
+  const handleRemovePlacePic = async (index: number) => {
+    // Check if it's an existing image (not a blob URL) - if so, delete from server
+    const pic = formData.placePics[index];
+    const isExistingImage = pic && !pic.startsWith('blob:');
+    
+    if (isExistingImage) {
+      if (!window.confirm("Are you sure you want to delete this place picture?")) {
+        return; // Don't remove if user cancels
+      }
+      try {
+        setLoading(true);
+        // Find the index in the original array (excluding new blob URLs)
+        const existingPics = formData.placePics.filter(p => !p.startsWith('blob:'));
+        const originalIndex = existingPics.findIndex(p => p === pic);
+        
+        if (originalIndex !== -1) {
+          await restaurantApi.deletePlacePic(originalIndex);
+          toast.success("Place picture deleted successfully");
+        }
+        // Only remove from UI after successful deletion
+        setFormData((prev) => ({
+          ...prev,
+          placePics: prev.placePics.filter((_, i) => i !== index),
+        }));
+      } catch (error: any) {
+        toast.error(error.message || "Failed to delete place picture");
+        // Don't remove from UI if deletion failed
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Remove from both the preview URLs and the file array for new uploads
+      // If it's a new file (index >= existing placePics count), remove from placePicFiles
+      const existingPicsCount = formData.placePics.filter(pic => !pic.startsWith('blob:')).length;
+      if (index >= existingPicsCount) {
+        const fileIndex = index - existingPicsCount;
+        setPlacePicFiles((prev) => prev.filter((_, i) => i !== fileIndex));
+      }
+      // Remove from UI for new uploads
+      setFormData((prev) => ({
+        ...prev,
+        placePics: prev.placePics.filter((_, i) => i !== index),
+      }));
+    }
   };
 
   const handleAddWorkingHour = () => {
@@ -217,6 +273,9 @@ export default function RestaurantProfilePage() {
         private_phone: formData.privatePhone || undefined,
         working_hours: workingHoursObj,
         food_category_ids: formData.foodCategoryIds,
+        profile_pic: profilePicFile || undefined,
+        cover_image: coverImageFile || undefined,
+        place_pics: placePicFiles.length > 0 ? placePicFiles : undefined,
       });
 
       toast.success("Restaurant profile updated successfully!");
@@ -509,10 +568,36 @@ export default function RestaurantProfilePage() {
                   </div>
 
                   <div>
+                    <Label>Profile Picture</Label>
                     <FileUpload
-                      label="Profile Picture"
+                      label=""
                       value={formData.profilePic}
                       onChange={(file) => handleFileChange("profilePic", file)}
+                      onRemove={async () => {
+                        // If it's an existing image (not a new file upload), delete from server
+                        if (formData.profilePic && !profilePicFile && !formData.profilePic.startsWith('blob:')) {
+                          if (!window.confirm("Are you sure you want to delete the profile picture?")) {
+                            return false; // Return false to prevent removal
+                          }
+                          try {
+                            setLoading(true);
+                            await restaurantApi.deleteProfilePic();
+                            toast.success("Profile picture deleted successfully");
+                            setFormData(prev => ({ ...prev, profilePic: null }));
+                            return true; // Allow removal
+                          } catch (error: any) {
+                            toast.error(error.message || "Failed to delete profile picture");
+                            return false; // Don't remove from UI if deletion failed
+                          } finally {
+                            setLoading(false);
+                          }
+                        } else {
+                          // Just remove the new file upload
+                          setProfilePicFile(null);
+                          setFormData(prev => ({ ...prev, profilePic: null }));
+                          return true; // Allow removal
+                        }
+                      }}
                       accept="image/*"
                     />
                   </div>
@@ -549,10 +634,36 @@ export default function RestaurantProfilePage() {
                   </div>
 
                   <div>
+                    <Label>Cover Image</Label>
                     <FileUpload
-                      label="Cover Image"
+                      label=""
                       value={formData.coverImage}
                       onChange={(file) => handleFileChange("coverImage", file)}
+                      onRemove={async () => {
+                        // If it's an existing image (not a new file upload), delete from server
+                        if (formData.coverImage && !coverImageFile && !formData.coverImage.startsWith('blob:')) {
+                          if (!window.confirm("Are you sure you want to delete the cover image?")) {
+                            return false; // Return false to prevent removal
+                          }
+                          try {
+                            setLoading(true);
+                            await restaurantApi.deleteCoverImage();
+                            toast.success("Cover image deleted successfully");
+                            setFormData(prev => ({ ...prev, coverImage: null }));
+                            return true; // Allow removal
+                          } catch (error: any) {
+                            toast.error(error.message || "Failed to delete cover image");
+                            return false; // Don't remove from UI if deletion failed
+                          } finally {
+                            setLoading(false);
+                          }
+                        } else {
+                          // Just remove the new file upload
+                          setCoverImageFile(null);
+                          setFormData(prev => ({ ...prev, coverImage: null }));
+                          return true; // Allow removal
+                        }
+                      }}
                       accept="image/*"
                     />
                   </div>

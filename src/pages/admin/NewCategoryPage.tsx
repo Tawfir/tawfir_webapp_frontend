@@ -25,10 +25,8 @@ export default function NewCategoryPage() {
     name: "",
     slug: "",
     image: "",
-    cover: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
@@ -59,18 +57,6 @@ export default function NewCategoryPage() {
     }
   };
 
-  const handleCoverChange = (file: File | null) => {
-    setCoverFile(file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, cover: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setFormData(prev => ({ ...prev, cover: "" }));
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,8 +71,7 @@ export default function NewCategoryPage() {
       const response = await adminApi.createCategory({
         name: formData.name.trim(),
         slug: formData.slug.trim() || undefined,
-        image: formData.image || undefined,
-        cover: formData.cover || undefined,
+        image: imageFile || undefined,
       });
 
       if (response.status) {
@@ -183,13 +168,6 @@ export default function NewCategoryPage() {
                     value={formData.image || imageFile}
                     onChange={handleImageChange}
                     label="Category Image"
-                    previewClassName="h-48"
-                  />
-
-                  <FileUpload
-                    value={formData.cover || coverFile}
-                    onChange={handleCoverChange}
-                    label="Category Cover Image (Optional)"
                     previewClassName="h-48"
                   />
                 </CardContent>
