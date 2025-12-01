@@ -25,6 +25,7 @@ import { MapPin, Plus, X, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { restaurantApi, userApi } from "@/services/api";
 import { toast } from "sonner";
+import GoogleMapPicker from "@/components/maps/GoogleMapPicker";
 
 interface WorkingHour {
   day: string;
@@ -232,20 +233,39 @@ export default function RestaurantProfilePage() {
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setFormData((prev) => ({
-            ...prev,
-            lat: position.coords.latitude.toString(),
-            lng: position.coords.longitude.toString(),
-          }));
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          
+          // Reverse geocode to get address
+          try {
+            // We'll use the map component's geocoding, but for now just update lat/lng
+            setFormData((prev) => ({
+              ...prev,
+              lat: lat.toString(),
+              lng: lng.toString(),
+            }));
+            toast.success("Location updated from your current position");
+          } catch (error) {
+            toast.error("Failed to get address for location");
+          }
         },
         (error) => {
-          alert(`Geolocation failed: ${error.message}`);
+          toast.error(`Geolocation failed: ${error.message}`);
         }
       );
     } else {
-      alert("Geolocation is not supported by your browser.");
+      toast.error("Geolocation is not supported by your browser.");
     }
+  };
+
+  const handleMapLocationChange = (lat: number, lng: number, address: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      lat: lat.toString(),
+      lng: lng.toString(),
+      address: address || prev.address, // Only update address if geocoding succeeded
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -346,7 +366,11 @@ export default function RestaurantProfilePage() {
                       onChange={(e) => handleInputChange("address", e.target.value)}
                       required
                       className="mt-1"
+                      placeholder="Enter address or search for location"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      You can also search by clicking on the map below
+                    </p>
                   </div>
 
                   <div>
@@ -363,16 +387,16 @@ export default function RestaurantProfilePage() {
 
                   <div>
                     <Label>Pick on Map</Label>
-                    <div className="mt-1 h-64 rounded-lg border border-border bg-muted/30 flex items-center justify-center">
-                      <div className="text-center text-muted-foreground p-4">
-                        <MapPin className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">
-                          Google Maps integration required
-                        </p>
-                        <p className="text-xs mt-1">
-                          Lat: {formData.lat}, Lng: {formData.lng}
-                        </p>
-                      </div>
+                    <p className="text-xs text-muted-foreground mt-1 mb-2">
+                      Click on the map or drag the marker to set your restaurant location
+                    </p>
+                    <div className="mt-1">
+                      <GoogleMapPicker
+                        lat={formData.lat ? parseFloat(formData.lat) : null}
+                        lng={formData.lng ? parseFloat(formData.lng) : null}
+                        onLocationChange={handleMapLocationChange}
+                        height="400px"
+                      />
                     </div>
                   </div>
 

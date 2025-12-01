@@ -43,6 +43,9 @@ Create a `.env` file in the root directory with the following:
 # Backend API Configuration
 VITE_API_URL=http://localhost:8080
 
+# Google Maps API Key (for restaurant location picker)
+VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+
 # Environment
 VITE_APP_ENV=development
 ```
@@ -51,6 +54,9 @@ VITE_APP_ENV=development
 ```env
 # Backend API Configuration
 VITE_API_URL=https://your-production-api-url.com
+
+# Google Maps API Key (for restaurant location picker)
+VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
 
 # Environment
 VITE_APP_ENV=production
