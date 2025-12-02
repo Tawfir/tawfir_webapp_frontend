@@ -50,6 +50,10 @@ const statusConfig = {
     label: "COMPLETED", 
     className: "bg-primary text-primary-foreground border-0 px-3 py-1.5 uppercase tracking-wide" 
   },
+  cancelled: { 
+    label: "CANCELLED", 
+    className: "bg-destructive text-destructive-foreground border-0 px-3 py-1.5 uppercase tracking-wide" 
+  },
 };
 
 export default function RestaurantOrdersPage() {
@@ -228,6 +232,12 @@ export default function RestaurantOrdersPage() {
                             className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
                           >
                             Completed
+                          </SelectItem>
+                          <SelectItem 
+                            value="cancelled"
+                            className="focus:bg-destructive focus:text-destructive-foreground data-[highlighted]:bg-destructive data-[highlighted]:text-destructive-foreground"
+                          >
+                            Cancelled
                           </SelectItem>
                         </SelectContent>
                       </Select>

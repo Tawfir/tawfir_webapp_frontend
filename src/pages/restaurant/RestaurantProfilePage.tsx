@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileUpload } from "@/components/ui/file-upload";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -21,10 +22,11 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { MapPin, Plus, X, Clock } from "lucide-react";
+import { MapPin, Plus, X, Clock, Edit, Phone, Mail, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { restaurantApi, userApi } from "@/services/api";
 import { toast } from "sonner";
+import GoogleMapPicker from "@/components/maps/GoogleMapPicker";
 
 interface WorkingHour {
   day: string;
@@ -44,6 +46,7 @@ const daysOfWeek = [
 
 export default function RestaurantProfilePage() {
   const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -56,10 +59,16 @@ export default function RestaurantProfilePage() {
     profilePic: null as string | null,
     placePics: [] as string[],
     coverImage: null as string | null,
+    ownerName: "",
+    ownerEmail: "",
   });
+  const [originalFormData, setOriginalFormData] = useState(formData);
   const [availableCategories, setAvailableCategories] = useState<Array<{ id: number; name: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [placePicFiles, setPlacePicFiles] = useState<File[]>([]);
 
   useEffect(() => {
     fetchRestaurant();
@@ -76,21 +85,32 @@ export default function RestaurantProfilePage() {
           ? (typeof restaurant.working_hours === 'string' 
               ? JSON.parse(restaurant.working_hours) 
               : restaurant.working_hours)
-          : [];
+          : {};
         
-        setFormData({
+        // Convert working hours object to array
+        const workingHoursArray: WorkingHour[] = Object.entries(workingHours).map(([day, hours]: [string, any]) => ({
+          day,
+          open: hours.open || "",
+          close: hours.close || "",
+        }));
+        
+        const data = {
           name: restaurant.name || "",
           address: restaurant.address || "",
           lat: restaurant.lat?.toString() || "",
           lng: restaurant.lng?.toString() || "",
           publicPhone: restaurant.public_phone || "",
           privatePhone: restaurant.private_phone || "",
-          workingHours: Array.isArray(workingHours) ? workingHours : [],
+          workingHours: workingHoursArray,
           foodCategoryIds: restaurant.categories?.map((c: any) => Number(c.id)) || [],
           profilePic: restaurant.profile_pic || null,
-          placePics: restaurant.place_pics || [],
+          placePics: Array.isArray(restaurant.place_pics) ? restaurant.place_pics : (restaurant.place_pics ? [restaurant.place_pics] : []),
           coverImage: restaurant.cover_image || null,
-        });
+          ownerName: restaurant.owner_name || "",
+          ownerEmail: restaurant.owner_email || "",
+        };
+        setFormData(data);
+        setOriginalFormData(data);
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to load restaurant profile");
@@ -103,9 +123,7 @@ export default function RestaurantProfilePage() {
     try {
       const response = await userApi.getCategories();
       if (response.status && response.data) {
-        // Backend returns categories as a direct array, not wrapped in { categories: [...] }
         const categories = Array.isArray(response.data) ? response.data : response.data.categories || [];
-        // Ensure all category IDs are numbers for consistent comparison
         const normalizedCategories = categories.map((cat: any) => ({
           ...cat,
           id: Number(cat.id)
@@ -124,24 +142,69 @@ export default function RestaurantProfilePage() {
 
   const handleFileChange = (field: string, file: File | null) => {
     if (file) {
-      // For demo, convert File to URL. In real app, upload and get URL.
       const url = URL.createObjectURL(file);
       if (field === "placePics") {
+        setPlacePicFiles((prev) => [...prev, file]);
         setFormData((prev) => ({
           ...prev,
           placePics: [...prev.placePics, url],
         }));
+      } else if (field === "profilePic") {
+        setProfilePicFile(file);
+        setFormData((prev) => ({ ...prev, [field]: url }));
+      } else if (field === "coverImage") {
+        setCoverImageFile(file);
+        setFormData((prev) => ({ ...prev, [field]: url }));
       } else {
         setFormData((prev) => ({ ...prev, [field]: url }));
       }
+    } else {
+      if (field === "profilePic") {
+        setProfilePicFile(null);
+      } else if (field === "coverImage") {
+        setCoverImageFile(null);
+      }
+      setFormData((prev) => ({ ...prev, [field]: null }));
     }
   };
 
-  const handleRemovePlacePic = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      placePics: prev.placePics.filter((_, i) => i !== index),
-    }));
+  const handleRemovePlacePic = async (index: number) => {
+    const pic = formData.placePics[index];
+    const isExistingImage = pic && !pic.startsWith('blob:');
+    
+    if (isExistingImage) {
+      if (!window.confirm("Are you sure you want to delete this place picture?")) {
+        return;
+      }
+      try {
+        setLoading(true);
+        const existingPics = formData.placePics.filter(p => !p.startsWith('blob:'));
+        const originalIndex = existingPics.findIndex(p => p === pic);
+        
+        if (originalIndex !== -1) {
+          await restaurantApi.deletePlacePic(originalIndex);
+          toast.success("Place picture deleted successfully");
+        }
+        setFormData((prev) => ({
+          ...prev,
+          placePics: prev.placePics.filter((_, i) => i !== index),
+        }));
+      } catch (error: any) {
+        toast.error(error.message || "Failed to delete place picture");
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      const existingPicsCount = formData.placePics.filter(pic => !pic.startsWith('blob:')).length;
+      if (index >= existingPicsCount) {
+        const fileIndex = index - existingPicsCount;
+        setPlacePicFiles((prev) => prev.filter((_, i) => i !== fileIndex));
+      }
+      setFormData((prev) => ({
+        ...prev,
+        placePics: prev.placePics.filter((_, i) => i !== index),
+      }));
+    }
   };
 
   const handleAddWorkingHour = () => {
@@ -176,20 +239,37 @@ export default function RestaurantProfilePage() {
   const handleUseCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setFormData((prev) => ({
-            ...prev,
-            lat: position.coords.latitude.toString(),
-            lng: position.coords.longitude.toString(),
-          }));
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          
+          try {
+            setFormData((prev) => ({
+              ...prev,
+              lat: lat.toString(),
+              lng: lng.toString(),
+            }));
+            toast.success("Location updated from your current position");
+          } catch (error) {
+            toast.error("Failed to get address for location");
+          }
         },
         (error) => {
-          alert(`Geolocation failed: ${error.message}`);
+          toast.error(`Geolocation failed: ${error.message}`);
         }
       );
     } else {
-      alert("Geolocation is not supported by your browser.");
+      toast.error("Geolocation is not supported by your browser.");
     }
+  };
+
+  const handleMapLocationChange = (lat: number, lng: number, address: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      lat: lat.toString(),
+      lng: lng.toString(),
+      address: address || prev.address,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -217,14 +297,45 @@ export default function RestaurantProfilePage() {
         private_phone: formData.privatePhone || undefined,
         working_hours: workingHoursObj,
         food_category_ids: formData.foodCategoryIds,
+        owner_name: formData.ownerName || undefined,
+        owner_email: formData.ownerEmail || undefined,
+        profile_pic: profilePicFile || undefined,
+        cover_image: coverImageFile || undefined,
+        place_pics: placePicFiles.length > 0 ? placePicFiles : undefined,
       });
 
       toast.success("Restaurant profile updated successfully!");
+      setOriginalFormData(formData);
+      setIsEditing(false);
+      // Reset file states
+      setProfilePicFile(null);
+      setCoverImageFile(null);
+      setPlacePicFiles([]);
+      // Refresh data
+      await fetchRestaurant();
     } catch (error: any) {
       toast.error(error.message || "Failed to update restaurant profile");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancel = () => {
+    setFormData(originalFormData);
+    setProfilePicFile(null);
+    setCoverImageFile(null);
+    setPlacePicFiles([]);
+    setIsEditing(false);
+  };
+
+  const getCategoryName = (id: number) => {
+    const category = availableCategories.find((c) => Number(c.id) === Number(id));
+    return category?.name || `Category ${id}`;
+  };
+
+  const getDayLabel = (day: string) => {
+    const dayObj = daysOfWeek.find(d => d.value === day);
+    return dayObj ? dayObj.label : day;
   };
 
   return (
@@ -237,24 +348,34 @@ export default function RestaurantProfilePage() {
                 <Link to="/restaurant/profile">Restaurant Profile</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Edit</BreadcrumbPage>
-            </BreadcrumbItem>
+            {isEditing && (
+              <>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Edit</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            )}
           </BreadcrumbList>
         </Breadcrumb>
 
-        <div>
+        <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Edit Restaurant Profile
+            {isEditing ? "Edit Restaurant Profile" : "Restaurant Profile"}
           </h1>
+          {!isEditing && (
+            <Button onClick={() => setIsEditing(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          )}
         </div>
 
         {fetching ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground">Loading restaurant profile...</p>
           </div>
-        ) : (
+        ) : isEditing ? (
           <form onSubmit={handleSubmit}>
             <div className="grid gap-6 md:grid-cols-2 md:items-stretch">
             {/* Left Column */}
@@ -287,7 +408,11 @@ export default function RestaurantProfilePage() {
                       onChange={(e) => handleInputChange("address", e.target.value)}
                       required
                       className="mt-1"
+                      placeholder="Enter address or search for location"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      You can also search by clicking on the map below
+                    </p>
                   </div>
 
                   <div>
@@ -304,16 +429,16 @@ export default function RestaurantProfilePage() {
 
                   <div>
                     <Label>Pick on Map</Label>
-                    <div className="mt-1 h-64 rounded-lg border border-border bg-muted/30 flex items-center justify-center">
-                      <div className="text-center text-muted-foreground p-4">
-                        <MapPin className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">
-                          Google Maps integration required
-                        </p>
-                        <p className="text-xs mt-1">
-                          Lat: {formData.lat}, Lng: {formData.lng}
-                        </p>
-                      </div>
+                    <p className="text-xs text-muted-foreground mt-1 mb-2">
+                      Click on the map or drag the marker to set your restaurant location
+                    </p>
+                    <div className="mt-1">
+                      <GoogleMapPicker
+                        lat={formData.lat ? parseFloat(formData.lat) : null}
+                        lng={formData.lng ? parseFloat(formData.lng) : null}
+                        onLocationChange={handleMapLocationChange}
+                        height="400px"
+                      />
                     </div>
                   </div>
 
@@ -364,6 +489,31 @@ export default function RestaurantProfilePage() {
                       id="privatePhone"
                       value={formData.privatePhone}
                       onChange={(e) => handleInputChange("privatePhone", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="ownerName">
+                      Owner Name
+                    </Label>
+                    <Input
+                      id="ownerName"
+                      value={formData.ownerName}
+                      onChange={(e) => handleInputChange("ownerName", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="ownerEmail">
+                      Owner Email
+                    </Label>
+                    <Input
+                      id="ownerEmail"
+                      type="email"
+                      value={formData.ownerEmail}
+                      onChange={(e) => handleInputChange("ownerEmail", e.target.value)}
                       className="mt-1"
                     />
                   </div>
@@ -481,7 +631,6 @@ export default function RestaurantProfilePage() {
                     {formData.foodCategoryIds.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {formData.foodCategoryIds.map((id) => {
-                          // Ensure we compare IDs as numbers to avoid type mismatch
                           const category = availableCategories.find((c) => Number(c.id) === Number(id));
                           return (
                             <div
@@ -509,10 +658,34 @@ export default function RestaurantProfilePage() {
                   </div>
 
                   <div>
+                    <Label>Profile Picture</Label>
                     <FileUpload
-                      label="Profile Picture"
+                      label=""
                       value={formData.profilePic}
                       onChange={(file) => handleFileChange("profilePic", file)}
+                      onRemove={async () => {
+                        if (formData.profilePic && !profilePicFile && !formData.profilePic.startsWith('blob:')) {
+                          if (!window.confirm("Are you sure you want to delete the profile picture?")) {
+                            return false;
+                          }
+                          try {
+                            setLoading(true);
+                            await restaurantApi.deleteProfilePic();
+                            toast.success("Profile picture deleted successfully");
+                            setFormData(prev => ({ ...prev, profilePic: null }));
+                            return true;
+                          } catch (error: any) {
+                            toast.error(error.message || "Failed to delete profile picture");
+                            return false;
+                          } finally {
+                            setLoading(false);
+                          }
+                        } else {
+                          setProfilePicFile(null);
+                          setFormData(prev => ({ ...prev, profilePic: null }));
+                          return true;
+                        }
+                      }}
                       accept="image/*"
                     />
                   </div>
@@ -549,10 +722,34 @@ export default function RestaurantProfilePage() {
                   </div>
 
                   <div>
+                    <Label>Cover Image</Label>
                     <FileUpload
-                      label="Cover Image"
+                      label=""
                       value={formData.coverImage}
                       onChange={(file) => handleFileChange("coverImage", file)}
+                      onRemove={async () => {
+                        if (formData.coverImage && !coverImageFile && !formData.coverImage.startsWith('blob:')) {
+                          if (!window.confirm("Are you sure you want to delete the cover image?")) {
+                            return false;
+                          }
+                          try {
+                            setLoading(true);
+                            await restaurantApi.deleteCoverImage();
+                            toast.success("Cover image deleted successfully");
+                            setFormData(prev => ({ ...prev, coverImage: null }));
+                            return true;
+                          } catch (error: any) {
+                            toast.error(error.message || "Failed to delete cover image");
+                            return false;
+                          } finally {
+                            setLoading(false);
+                          }
+                        } else {
+                          setCoverImageFile(null);
+                          setFormData(prev => ({ ...prev, coverImage: null }));
+                          return true;
+                        }
+                      }}
                       accept="image/*"
                     />
                   </div>
@@ -565,11 +762,134 @@ export default function RestaurantProfilePage() {
             <Button type="submit" disabled={loading || fetching}>
               {loading ? "Saving..." : "Save changes"}
             </Button>
-            <Button type="button" variant="outline" asChild>
-              <Link to="/restaurant">Cancel</Link>
+            <Button type="button" variant="outline" onClick={handleCancel}>
+              Cancel
             </Button>
           </div>
           </form>
+        ) : (
+          // View Mode
+          <div className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Restaurant Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Name</p>
+                    <p className="text-base font-semibold text-foreground">{formData.name || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Address</p>
+                    <p className="text-base font-semibold text-foreground">{formData.address || "N/A"}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Latitude</p>
+                      <p className="text-base font-semibold text-foreground">{formData.lat || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Longitude</p>
+                      <p className="text-base font-semibold text-foreground">{formData.lng || "N/A"}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Public Phone</p>
+                    <p className="text-base font-semibold text-foreground">{formData.publicPhone || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Private Phone</p>
+                    <p className="text-base font-semibold text-foreground">{formData.privatePhone || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Owner Name</p>
+                    <p className="text-base font-semibold text-foreground">{formData.ownerName || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Owner Email</p>
+                    <p className="text-base font-semibold text-foreground">{formData.ownerEmail || "N/A"}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Additional Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Working Hours</p>
+                    {formData.workingHours.length > 0 ? (
+                      <div className="space-y-2">
+                        {formData.workingHours.map((hour, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                            <span className="font-medium text-foreground capitalize">{getDayLabel(hour.day)}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {hour.open} - {hour.close}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No working hours set</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">Food Categories</p>
+                    {formData.foodCategoryIds.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {formData.foodCategoryIds.map((id) => (
+                          <Badge key={id} variant="outline" className="px-3 py-1">
+                            {getCategoryName(id)}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No categories</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Images</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Profile Picture</p>
+                  {formData.profilePic ? (
+                    <img src={formData.profilePic} alt="Profile" className="h-32 w-32 rounded-lg object-cover" />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No profile picture</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Cover Image</p>
+                  {formData.coverImage ? (
+                    <img src={formData.coverImage} alt="Cover" className="h-48 w-full rounded-lg object-cover" />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No cover image</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Place Pictures</p>
+                  {formData.placePics.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      {formData.placePics.map((pic, index) => (
+                        <img key={index} src={pic} alt={`Place ${index + 1}`} className="h-32 w-full rounded-lg object-cover" />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No place pictures</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </DashboardLayout>

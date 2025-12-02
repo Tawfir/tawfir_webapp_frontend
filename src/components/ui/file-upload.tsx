@@ -29,7 +29,8 @@ export function FileUpload({
   );
 
   React.useEffect(() => {
-    if (typeof value === "string") {
+    if (typeof value === "string" && value.trim() !== "" && !value.includes('via.placeholder.com')) {
+      // Only set preview if it's a valid non-empty string URL (not a placeholder)
       setPreview(value);
     } else if (value instanceof File) {
       const reader = new FileReader();
@@ -80,12 +81,28 @@ export function FileUpload({
     fileInputRef.current?.click();
   };
 
-  const handleRemove = (e: React.MouseEvent) => {
+  const handleRemove = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    
+    // If onRemove is provided, call it first and check if it prevents removal
+    if (onRemove) {
+      const result = onRemove();
+      // If onRemove returns a promise, wait for it
+      // If it returns false, don't remove
+      if (result instanceof Promise) {
+        const shouldRemove = await result;
+        if (shouldRemove === false) {
+          return; // Don't remove if callback returns false
+        }
+      } else if (result === false) {
+        return; // Don't remove if callback returns false
+      }
+    }
+    
+    // Remove the preview and call onChange
     setPreview(null);
     onChange?.(null);
-    onRemove?.();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -126,6 +143,10 @@ export function FileUpload({
                 "w-full h-full object-cover rounded-lg",
                 previewClassName || "h-48"
               )}
+              onError={(e) => {
+                // Hide image if it fails to load
+                e.currentTarget.style.display = 'none';
+              }}
             />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors rounded-lg flex items-center justify-center">
               <Button

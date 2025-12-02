@@ -25,7 +25,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { Plus, Search, Filter, Eye, Edit, ChevronDown } from "lucide-react";
+import { Plus, Search, Filter, Eye, Edit, ChevronDown, Trash2 } from "lucide-react";
 import { adminApi } from "@/services/api";
 import { toast } from "sonner";
 
@@ -81,6 +81,20 @@ export default function RestaurantsPage() {
       toast.error(error.message || "Failed to load restaurants");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (restaurantId: number, restaurantName: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${restaurantName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await adminApi.deleteRestaurant(restaurantId);
+      toast.success("Restaurant deleted successfully");
+      fetchRestaurants(); // Refresh the list
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete restaurant");
     }
   };
 
@@ -313,7 +327,7 @@ export default function RestaurantsPage() {
                           {restaurant.name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                          {restaurant.owner}
+                          {restaurant.owner_name || "N/A"}
                         </td>
                         <td className="px-6 py-4 text-sm text-foreground max-w-xs">
                           <p className="truncate">{restaurant.address}</p>
@@ -361,6 +375,15 @@ export default function RestaurantsPage() {
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit
                               </Link>
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => handleDelete(restaurant.id, restaurant.name)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
                             </Button>
                           </div>
                         </td>

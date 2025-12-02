@@ -14,28 +14,6 @@ import { Button } from "@/components/ui/button";
 import { adminApi } from "@/services/api";
 import { toast } from "sonner";
 
-// Generate chart data for last 30 days
-const generateChartData = (type: "co2" | "orders") => {
-  const data = [];
-  for (let i = 29; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const month = date.toLocaleDateString("en-US", { month: "short" });
-    const day = date.getDate();
-    
-    if (type === "co2") {
-      // CO2 data - mostly flat until recent spike
-      const value = i < 3 ? (189 / 3) * (3 - i) : 0;
-      data.push({ date: `${month} ${day}`, value: parseFloat(value.toFixed(2)) });
-    } else {
-      // Orders data
-      const value = Math.floor(Math.random() * 10) + (i < 3 ? 5 : 0);
-      data.push({ date: `${month} ${day}`, value });
-    }
-  }
-  return data;
-};
-
 export default function AdminDashboard() {
   const [chartType, setChartType] = useState<"co2" | "orders">("co2");
   const [stats, setStats] = useState({
@@ -44,12 +22,18 @@ export default function AdminDashboard() {
     totalCO2Saved: 0,
     platformRevenue: 0,
   });
+  const [chartData, setChartData] = useState<Array<{ date: string; value: number }>>([]);
   const [loading, setLoading] = useState(true);
-  const chartData = generateChartData(chartType);
+  const [chartLoading, setChartLoading] = useState(true);
 
   useEffect(() => {
     fetchStats();
+    fetchChartData();
   }, []);
+
+  useEffect(() => {
+    fetchChartData();
+  }, [chartType]);
 
   const fetchStats = async () => {
     try {
@@ -62,6 +46,22 @@ export default function AdminDashboard() {
       toast.error(error.message || "Failed to load dashboard stats");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchChartData = async () => {
+    try {
+      setChartLoading(true);
+      const response = await adminApi.getChartData(chartType);
+      if (response.status && response.data) {
+        setChartData(response.data.data || []);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load chart data");
+      // Fallback to empty data on error
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
     }
   };
 
@@ -168,12 +168,17 @@ export default function AdminDashboard() {
               </DropdownMenu>
             </div>
             <div className="h-[400px] w-full overflow-hidden">
-              <ChartContainer config={chartConfig} className="h-full w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
-                    data={chartData}
-                    margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-                  >
+              {chartLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-muted-foreground">Loading chart data...</p>
+                </div>
+              ) : (
+                <ChartContainer config={chartConfig} className="h-full w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart 
+                      data={chartData}
+                      margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                    >
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                     <XAxis
                       dataKey="date"
@@ -235,6 +240,7 @@ export default function AdminDashboard() {
                   </LineChart>
                 </ResponsiveContainer>
               </ChartContainer>
+              )}
             </div>
           </div>
         </div>

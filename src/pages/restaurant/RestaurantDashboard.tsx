@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,7 @@ interface Order {
   user?: { name: string };
   items?: Array<{ dish: { name: string } }>;
   total_price: number;
-  status: "incoming" | "ready" | "completed";
+  status: "incoming" | "ready" | "completed" | "cancelled";
   created_at: string;
   pickup_time: string;
 }
@@ -41,32 +42,6 @@ const statusConfig = {
   },
 };
 
-// Generate chart data for last 30 days
-const generateChartData = (type: "co2" | "orders") => {
-  const data = [];
-  for (let i = 29; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const month = date.toLocaleDateString("en-US", { month: "short" });
-    const day = date.getDate();
-    
-    if (type === "co2") {
-      const value = i < 3 ? (89.5 / 3) * (3 - i) : Math.random() * 10;
-      data.push({ date: `${month} ${day}`, value: parseFloat(value.toFixed(2)) });
-    } else {
-      const value = Math.floor(Math.random() * 15) + (i < 3 ? 5 : 0);
-      data.push({ date: `${month} ${day}`, value });
-    }
-  }
-  return data;
-};
-
-// Today's order status data
-const todayOrderStatusData = [
-  { status: "Incoming", count: 12 },
-  { status: "Ready", count: 8 },
-  { status: "Completed", count: 28 },
-];
 
 export default function RestaurantDashboard() {
   const [chartType, setChartType] = useState<"co2" | "orders">("co2");
@@ -83,12 +58,18 @@ export default function RestaurantDashboard() {
     { status: "Ready", count: 0 },
     { status: "Completed", count: 0 },
   ]);
+  const [chartData, setChartData] = useState<Array<{ date: string; value: number }>>([]);
   const [loading, setLoading] = useState(true);
-  const chartData = generateChartData(chartType);
+  const [chartLoading, setChartLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchChartData();
   }, []);
+
+  useEffect(() => {
+    fetchChartData();
+  }, [chartType]);
 
   const fetchDashboardData = async () => {
     try {
@@ -96,20 +77,15 @@ export default function RestaurantDashboard() {
       
       // Fetch dishes for surplus items count
       const dishesResponse = await restaurantApi.getDishes();
-      console.log('Dishes response:', dishesResponse);
       const dishes = dishesResponse.status && dishesResponse.data ? (dishesResponse.data.dishes || dishesResponse.data) : [];
-      console.log('Dishes:', dishes);
       // Ensure quantity is a number (PostgreSQL returns numeric as string)
       const totalSurplusItems = Array.isArray(dishes) 
         ? dishes.reduce((sum: number, dish: any) => sum + (Number(dish.quantity) || 0), 0)
         : 0;
-      console.log('Total surplus items:', totalSurplusItems);
 
       // Fetch orders
       const ordersResponse = await restaurantApi.getOrders();
-      console.log('Orders response:', ordersResponse);
       const allOrders = ordersResponse.status && ordersResponse.data ? (ordersResponse.data.orders || ordersResponse.data) : [];
-      console.log('All orders:', allOrders);
       
       // Filter today's orders
       const today = new Date();
@@ -120,8 +96,6 @@ export default function RestaurantDashboard() {
         orderDate.setHours(0, 0, 0, 0);
         return orderDate.getTime() === today.getTime() && order.status !== "cancelled";
       }) : [];
-      console.log('Today:', today.toISOString());
-      console.log('Today orders:', todayOrders);
 
       // Get incoming orders (today only)
       const incoming = todayOrders.filter((o: Order) => o.status === "incoming").slice(0, 10);
@@ -173,6 +147,22 @@ export default function RestaurantDashboard() {
       toast.error(error.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchChartData = async () => {
+    try {
+      setChartLoading(true);
+      const response = await restaurantApi.getChartData(chartType);
+      if (response.status && response.data) {
+        setChartData(response.data.data || []);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load chart data");
+      // Fallback to empty data on error
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
     }
   };
 
@@ -311,8 +301,15 @@ export default function RestaurantDashboard() {
                             <Badge variant="outline" className={cn("font-medium text-xs uppercase tracking-wide", status.className)}>
                               {status.label}
                             </Badge>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Eye className="h-4 w-4" />
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              asChild
+                            >
+                              <Link to={`/restaurant/orders/${order.id}`}>
+                                <Eye className="h-4 w-4" />
+                              </Link>
                             </Button>
                           </div>
                         </div>
@@ -408,12 +405,17 @@ export default function RestaurantDashboard() {
               </DropdownMenu>
             </div>
             <div className="h-[400px] w-full overflow-hidden">
-              <ChartContainer config={chartConfig} className="h-full w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
-                    data={chartData}
-                    margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-                  >
+              {chartLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-muted-foreground">Loading chart data...</p>
+                </div>
+              ) : (
+                <ChartContainer config={chartConfig} className="h-full w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart 
+                      data={chartData}
+                      margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                    >
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                     <XAxis
                       dataKey="date"
@@ -475,6 +477,7 @@ export default function RestaurantDashboard() {
                   </LineChart>
                 </ResponsiveContainer>
               </ChartContainer>
+              )}
             </div>
           </div>
         </div>

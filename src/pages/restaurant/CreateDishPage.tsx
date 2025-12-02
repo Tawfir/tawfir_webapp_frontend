@@ -80,10 +80,22 @@ export default function CreateDishPage() {
 
   const handleCategoryChange = (category: string) => {
     setFormData((prev) => {
-      const categories = prev.categories.includes(category)
-        ? prev.categories.filter((c) => c !== category)
-        : [...prev.categories, category];
-      return { ...prev, categories };
+      // Only add if not already present (prevent duplicates)
+      if (prev.categories.includes(category)) {
+        return prev; // Don't toggle, just return unchanged
+      }
+      return { ...prev, categories: [...prev.categories, category] };
+    });
+  };
+
+  const handleRemoveCategory = (category: string) => {
+    setFormData((prev) => {
+      // Prevent removing if it's the last category
+      if (prev.categories.length <= 1) {
+        toast.error("At least one category is required");
+        return prev;
+      }
+      return { ...prev, categories: prev.categories.filter((c) => c !== category) };
     });
   };
 
@@ -123,6 +135,7 @@ export default function CreateDishPage() {
         availability_method: formData.availabilityMethod,
         quantity: formData.quantity,
         food_category_ids: categoryIds,
+        image: formData.image || undefined,
       });
 
       toast.success("Dish created successfully!");
@@ -342,8 +355,9 @@ export default function CreateDishPage() {
                               {category}
                               <button
                                 type="button"
-                                onClick={() => handleCategoryChange(category)}
-                                className="hover:opacity-70"
+                                onClick={() => handleRemoveCategory(category)}
+                                className="hover:opacity-70 focus:outline-none"
+                                aria-label={`Remove ${category} category`}
                               >
                                 ×
                               </button>

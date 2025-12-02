@@ -47,6 +47,7 @@ export default function EditDishPage() {
   const [availableCategories, setAvailableCategories] = useState<Array<{ id: number; name: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -58,15 +59,30 @@ export default function EditDishPage() {
   const fetchDish = async () => {
     try {
       setFetching(true);
-      const dishesResponse = await restaurantApi.getDishes();
-      if (dishesResponse.status && dishesResponse.data.dishes) {
-        const dish = dishesResponse.data.dishes.find((d: Dish) => d.id === parseInt(id!));
-        if (dish) {
-          setFormData(dish);
-        } else {
-          toast.error("Dish not found");
-          navigate("/restaurant/menu");
+      if (!id) {
+        toast.error("Dish ID is required");
+        navigate("/restaurant/menu");
+        return;
+      }
+
+      const dishId = parseInt(id);
+      if (isNaN(dishId)) {
+        toast.error("Invalid dish ID");
+        navigate("/restaurant/menu");
+        return;
+      }
+
+      const response = await restaurantApi.getDish(dishId);
+      if (response.status && response.data?.dish) {
+        const dish = response.data.dish;
+        // Normalize image: convert empty strings or placeholder URLs to null
+        if (!dish.image || dish.image.trim() === '' || dish.image.includes('via.placeholder.com')) {
+          dish.image = null;
         }
+        setFormData(dish);
+      } else {
+        toast.error(response.message || "Dish not found");
+        navigate("/restaurant/menu");
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to load dish");
@@ -92,7 +108,13 @@ export default function EditDishPage() {
 
   const handleInputChange = (field: keyof Dish, value: any) => {
     if (!formData) return;
-    setFormData((prev) => prev ? ({ ...prev, [field]: value }) : null);
+    if (field === 'image' && value instanceof File) {
+      setImageFile(value);
+      // Also update formData for preview
+      setFormData((prev) => prev ? ({ ...prev, [field]: URL.createObjectURL(value) }) : null);
+    } else {
+      setFormData((prev) => prev ? ({ ...prev, [field]: value }) : null);
+    }
   };
 
   const handleCategoryChange = (categoryName: string) => {
@@ -105,14 +127,36 @@ export default function EditDishPage() {
       const categoryIds = prev.categories.map(c => c.id);
       const hasCategory = categoryIds.includes(category.id);
       
+      // Only add if not already present (prevent duplicates)
+      if (hasCategory) {
+        return prev; // Don't toggle, just return unchanged
+      }
+      
       return {
         ...prev,
-        categories: hasCategory
-          ? prev.categories.filter((c) => c.id !== category.id)
-          : [...prev.categories, category],
+        categories: [...prev.categories, category],
       };
     });
   };
+
+  const handleRemoveCategory = (categoryId: number) => {
+    if (!formData) return;
+    
+    // Prevent removing if it's the last category
+    if (formData.categories.length <= 1) {
+      toast.error("At least one category is required");
+      return;
+    }
+
+    setFormData((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        categories: prev.categories.filter((c) => c.id !== categoryId),
+      };
+    });
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +183,7 @@ export default function EditDishPage() {
         pickup_time: formData.pickup_time || undefined,
         quantity: formData.quantity,
         food_category_ids: categoryIds,
+        image: imageFile || undefined,
       });
 
       toast.success("Dish updated successfully!");
@@ -250,6 +295,32 @@ export default function EditDishPage() {
                     <FileUpload
                       value={formData?.image || null}
                       onChange={(file) => handleInputChange("image", file)}
+                      onRemove={async () => {
+                        // If it's an existing image (not a new file upload), delete from server
+                        if (formData?.image && !imageFile && id && !formData.image.startsWith('blob:')) {
+                          if (!window.confirm("Are you sure you want to delete this image?")) {
+                            return false; // Return false to prevent removal
+                          }
+                          try {
+                            setLoading(true);
+                            await restaurantApi.deleteDishImage(parseInt(id));
+                            toast.success("Image deleted successfully");
+                            setFormData((prev) => prev ? { ...prev, image: null } : null);
+                            setImageFile(null);
+                            return true; // Allow removal
+                          } catch (error: any) {
+                            toast.error(error.message || "Failed to delete image");
+                            return false; // Don't remove from UI if deletion failed
+                          } finally {
+                            setLoading(false);
+                          }
+                        } else {
+                          // Just remove the new file upload
+                          setImageFile(null);
+                          setFormData((prev) => prev ? { ...prev, image: null } : null);
+                          return true; // Allow removal
+                        }
+                      }}
                       accept="image/*"
                       className="mt-1"
                     />
@@ -402,8 +473,9 @@ export default function EditDishPage() {
                               {category.name}
                               <button
                                 type="button"
-                                onClick={() => handleCategoryChange(category.name)}
-                                className="hover:opacity-70"
+                                onClick={() => handleRemoveCategory(category.id)}
+                                className="hover:opacity-70 focus:outline-none"
+                                aria-label={`Remove ${category.name} category`}
                               >
                                 ×
                               </button>

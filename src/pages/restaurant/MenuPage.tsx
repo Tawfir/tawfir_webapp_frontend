@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ interface MenuItem {
 }
 
 export default function MenuPage() {
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [dishes, setDishes] = useState<MenuItem[]>([]);
@@ -44,7 +45,7 @@ export default function MenuPage() {
 
   useEffect(() => {
     fetchDishes();
-  }, []);
+  }, [location.key]); // Refresh when location changes (navigating back to this page)
 
   const fetchDishes = async () => {
     try {
@@ -160,20 +161,47 @@ export default function MenuPage() {
               const primaryCategory = item.categories?.[0]?.name || "Uncategorized";
               
               return (
-                <div
+                <Link
                   key={item.id}
-                  className={cn(
-                    "group relative overflow-hidden rounded-xl border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 animate-scale-in"
-                  )}
+                  to={`/restaurant/menu/${item.id}/edit`}
+                  className="group relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 animate-scale-in cursor-pointer block"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <div className="p-4">
+                  {/* Dish Image */}
+                  <div className="relative h-48 w-full overflow-hidden bg-muted">
+                    {item.image && item.image.trim() !== "" && !item.image.includes('via.placeholder') ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        onError={(e) => {
+                          // Hide image if it fails to load
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 to-secondary/20">
+                        <span className="text-5xl">🍽️</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                  </div>
+
+                  {/* Dish Info */}
+                  <div className="p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-foreground">{item.name}</h3>
+                        <h3 className="font-semibold text-lg text-foreground mb-1 line-clamp-1">
+                          {item.name}
+                        </h3>
+                        {item.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                            {item.description}
+                          </p>
+                        )}
                       </div>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
@@ -187,7 +215,10 @@ export default function MenuPage() {
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-destructive"
-                            onClick={() => handleDelete(item.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(item.id);
+                            }}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
@@ -196,54 +227,40 @@ export default function MenuPage() {
                       </DropdownMenu>
                     </div>
 
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {item.description || "No description"}
-                        </p>
-                      </div>
-                      <div className="flex-shrink-0">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-muted overflow-hidden">
-                          {item.image ? (
-                            <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
-                          ) : (
-                            <span className="text-3xl">🍽️</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-end justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          {originalPrice && originalPrice > sellingPrice && (
-                            <span className="text-sm text-muted-foreground line-through">
-                              ${originalPrice.toFixed(2)}
-                            </span>
-                          )}
-                          <span className="text-lg font-bold text-primary">
-                            ${sellingPrice.toFixed(2)}
+                    {/* Price and Category */}
+                    <div className="space-y-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        {originalPrice && originalPrice > sellingPrice && (
+                          <span className="text-sm text-muted-foreground line-through">
+                            ${originalPrice.toFixed(2)}
                           </span>
-                        </div>
+                        )}
+                        <span className="text-lg font-bold text-primary">
+                          ${sellingPrice.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline" className="text-xs">
                           {primaryCategory}
                         </Badge>
+                        <Badge 
+                          variant="outline" 
+                          className={cn(
+                            "text-xs font-semibold",
+                            item.quantity > 0 
+                              ? "bg-success/10 text-success border-success/20" 
+                              : "bg-destructive/10 text-destructive border-destructive/20"
+                          )}
+                        >
+                          {item.quantity > 0 ? `${item.quantity} left` : "Out of stock"}
+                        </Badge>
                       </div>
-                      <Badge 
-                        variant="outline" 
-                        className={cn(
-                          "text-sm font-bold",
-                          item.quantity > 0 
-                            ? "bg-success/10 text-success border-success/20" 
-                            : "bg-destructive/10 text-destructive border-destructive/20"
-                        )}
-                      >
-                        {item.quantity > 0 ? `${item.quantity} left` : "Out of stock"}
-                      </Badge>
                     </div>
                   </div>
+
+                  {/* Hover Gradient Border */}
                   <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-primary opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-                </div>
+                </Link>
               );
             })}
           </div>

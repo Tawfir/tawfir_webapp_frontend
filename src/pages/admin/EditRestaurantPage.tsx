@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FileUpload } from "@/components/ui/file-upload";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,8 +16,10 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { FileUpload } from "@/components/ui/file-upload";
-import { ArrowLeft, Trash2, Plus, X } from "lucide-react";
+import { ArrowLeft, Plus, X, MapPin } from "lucide-react";
+import { adminApi, userApi } from "@/services/api";
+import { toast } from "sonner";
+import GoogleMapPicker from "@/components/maps/GoogleMapPicker";
 
 interface WorkingHour {
   day: string;
@@ -25,78 +27,258 @@ interface WorkingHour {
   close: string;
 }
 
-// Mock data - replace with API call
-const mockRestaurant = {
-  id: 1,
-  name: "Tawfir Restaurant",
-  address: "123 Test Street",
-  latitude: "24.7136",
-  longitude: "46.6753",
-  publicPhone: "0500000000",
-  privatePhone: "0550000000",
-  status: "approved",
-  isFeatured: true,
-  workingHours: [] as WorkingHour[],
-  foodCategories: [] as string[],
-};
+const daysOfWeek = [
+  { value: "monday", label: "Monday" },
+  { value: "tuesday", label: "Tuesday" },
+  { value: "wednesday", label: "Wednesday" },
+  { value: "thursday", label: "Thursday" },
+  { value: "friday", label: "Friday" },
+  { value: "saturday", label: "Saturday" },
+  { value: "sunday", label: "Sunday" },
+];
 
 export default function EditRestaurantPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
   const [formData, setFormData] = useState({
-    name: mockRestaurant.name,
-    address: mockRestaurant.address,
-    latitude: mockRestaurant.latitude,
-    longitude: mockRestaurant.longitude,
-    publicPhone: mockRestaurant.publicPhone,
-    privatePhone: mockRestaurant.privatePhone,
-    status: mockRestaurant.status,
-    isFeatured: mockRestaurant.isFeatured,
+    name: "",
+    address: "",
+    lat: "",
+    lng: "",
+    publicPhone: "",
+    privatePhone: "",
+    workingHours: [] as WorkingHour[],
+    foodCategoryIds: [] as number[],
+    profilePic: null as string | null,
+    placePics: [] as string[],
+    coverImage: null as string | null,
+    status: "pending" as "pending" | "approved" | "rejected",
+    isFeatured: false,
+    ownerName: "",
+    ownerEmail: "",
   });
+  const [availableCategories, setAvailableCategories] = useState<Array<{ id: number; name: string }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+  const [profilePicFile, setProfilePicFile] = useState<File | null>(null);
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [placePicFiles, setPlacePicFiles] = useState<File[]>([]);
 
-  const [workingHours, setWorkingHours] = useState<WorkingHour[]>(mockRestaurant.workingHours);
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [profilePic, setProfilePic] = useState<File | null>(null);
-  const [coverImage, setCoverImage] = useState<File | null>(null);
-  const [placePics, setPlacePics] = useState<File[]>([]);
+  useEffect(() => {
+    if (id) {
+      fetchRestaurant();
+      fetchCategories();
+    }
+  }, [id]);
 
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const fetchRestaurant = async () => {
+    try {
+      setFetching(true);
+      const response = await adminApi.getRestaurant(parseInt(id!));
+      if (response.status && response.data?.restaurant) {
+        const restaurant = response.data.restaurant;
+        const workingHours = restaurant.working_hours 
+          ? (typeof restaurant.working_hours === 'string' 
+              ? JSON.parse(restaurant.working_hours) 
+              : restaurant.working_hours)
+          : {};
+        
+        // Convert working hours object to array
+        const workingHoursArray: WorkingHour[] = Object.entries(workingHours).map(([day, hours]: [string, any]) => ({
+          day,
+          open: hours.open || "",
+          close: hours.close || "",
+        }));
+        
+        setFormData({
+          name: restaurant.name || "",
+          address: restaurant.address || "",
+          lat: restaurant.lat?.toString() || "",
+          lng: restaurant.lng?.toString() || "",
+          publicPhone: restaurant.public_phone || "",
+          privatePhone: restaurant.private_phone || "",
+          workingHours: workingHoursArray,
+          foodCategoryIds: restaurant.categories?.map((c: any) => Number(c.id)) || [],
+          profilePic: restaurant.profile_pic || null,
+          placePics: Array.isArray(restaurant.place_pics) ? restaurant.place_pics : (restaurant.place_pics ? [restaurant.place_pics] : []),
+          coverImage: restaurant.cover_image || null,
+          status: restaurant.status || "pending",
+          isFeatured: restaurant.is_featured || false,
+          ownerName: restaurant.owner_name || "",
+          ownerEmail: restaurant.owner_email || "",
+        });
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load restaurant");
+    } finally {
+      setFetching(false);
+    }
   };
 
-  const addWorkingHour = () => {
-    setWorkingHours([...workingHours, { day: "", open: "", close: "" }]);
+  const fetchCategories = async () => {
+    try {
+      const response = await userApi.getCategories();
+      if (response.status && response.data) {
+        const categories = Array.isArray(response.data) ? response.data : response.data.categories || [];
+        const normalizedCategories = categories.map((cat: any) => ({
+          ...cat,
+          id: Number(cat.id)
+        }));
+        setAvailableCategories(normalizedCategories);
+      }
+    } catch (error: any) {
+      toast.error("Failed to load categories");
+    }
   };
 
-  const removeWorkingHour = (index: number) => {
-    setWorkingHours(workingHours.filter((_, i) => i !== index));
+  const handleInputChange = (field: string, value: string | string[] | WorkingHour[] | number[] | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const updateWorkingHour = (index: number, field: keyof WorkingHour, value: string) => {
-    const updated = [...workingHours];
-    updated[index] = { ...updated[index], [field]: value };
-    setWorkingHours(updated);
+  const handleFileChange = (field: string, file: File | null) => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      if (field === "placePics") {
+        setPlacePicFiles((prev) => [...prev, file]);
+        setFormData((prev) => ({
+          ...prev,
+          placePics: [...prev.placePics, url],
+        }));
+      } else if (field === "profilePic") {
+        setProfilePicFile(file);
+        setFormData((prev) => ({ ...prev, [field]: url }));
+      } else if (field === "coverImage") {
+        setCoverImageFile(file);
+        setFormData((prev) => ({ ...prev, [field]: url }));
+      }
+    } else {
+      if (field === "profilePic") {
+        setProfilePicFile(null);
+      } else if (field === "coverImage") {
+        setCoverImageFile(null);
+      }
+      setFormData((prev) => ({ ...prev, [field]: null }));
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleRemovePlacePic = (index: number) => {
+    const existingPicsCount = formData.placePics.filter(pic => !pic.startsWith('blob:')).length;
+    if (index >= existingPicsCount) {
+      const fileIndex = index - existingPicsCount;
+      setPlacePicFiles((prev) => prev.filter((_, i) => i !== fileIndex));
+    }
+    setFormData((prev) => ({
+      ...prev,
+      placePics: prev.placePics.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleAddWorkingHour = () => {
+    setFormData((prev) => ({
+      ...prev,
+      workingHours: [
+        ...prev.workingHours,
+        { day: "monday", open: "09:00", close: "22:00" },
+      ],
+    }));
+  };
+
+  const handleRemoveWorkingHour = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      workingHours: prev.workingHours.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleWorkingHourChange = (
+    index: number,
+    field: keyof WorkingHour,
+    value: string
+  ) => {
+    setFormData((prev) => {
+      const updated = [...prev.workingHours];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, workingHours: updated };
+    });
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setFormData((prev) => ({
+            ...prev,
+            lat: lat.toString(),
+            lng: lng.toString(),
+          }));
+          toast.success("Location updated from your current position");
+        },
+        (error) => {
+          toast.error(`Geolocation failed: ${error.message}`);
+        }
+      );
+    } else {
+      toast.error("Geolocation is not supported by your browser.");
+    }
+  };
+
+  const handleMapLocationChange = (lat: number, lng: number, address: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      lat: lat.toString(),
+      lng: lng.toString(),
+      address: address || prev.address,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    console.log("Form submitted:", { ...formData, workingHours });
-    navigate("/admin/restaurants");
-  };
+    
+    if (!formData.name || !formData.address || !formData.lat || !formData.lng) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
 
-  const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this restaurant?")) {
-      // Handle delete
-      navigate("/admin/restaurants");
+    try {
+      setLoading(true);
+      
+      const workingHoursObj: Record<string, { open: string; close: string }> = {};
+      formData.workingHours.forEach(wh => {
+        workingHoursObj[wh.day] = { open: wh.open, close: wh.close };
+      });
+
+      await adminApi.updateRestaurant(parseInt(id!), {
+        restaurant_name: formData.name,
+        address: formData.address,
+        lat: parseFloat(formData.lat),
+        lng: parseFloat(formData.lng),
+        public_phone: formData.publicPhone || undefined,
+        private_phone: formData.privatePhone || undefined,
+        working_hours: workingHoursObj,
+        food_category_ids: formData.foodCategoryIds,
+        status: formData.status,
+        is_featured: formData.isFeatured,
+        owner_name: formData.ownerName || undefined,
+        owner_email: formData.ownerEmail || undefined,
+        profile_pic: profilePicFile || undefined,
+        cover_image: coverImageFile || undefined,
+        place_pics: placePicFiles.length > 0 ? placePicFiles : undefined,
+      });
+
+      toast.success("Restaurant updated successfully!");
+      navigate(`/admin/restaurants/${id}`);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update restaurant");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <DashboardLayout portalType="admin">
       <div className="space-y-6">
-        {/* Breadcrumb */}
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -107,7 +289,7 @@ export default function EditRestaurantPage() {
             <BreadcrumbSeparator />
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link to={`/admin/restaurants/${id}`}>{formData.name}</Link>
+                <Link to={`/admin/restaurants/${id}`}>{formData.name || "Restaurant"}</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
@@ -117,7 +299,6 @@ export default function EditRestaurantPage() {
           </BreadcrumbList>
         </Breadcrumb>
 
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button
@@ -128,30 +309,29 @@ export default function EditRestaurantPage() {
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                Edit {formData.name}
-              </h1>
-            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              Edit {formData.name || "Restaurant"}
+            </h1>
           </div>
-          <Button variant="destructive" onClick={handleDelete}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-6 md:grid-cols-2 md:items-stretch">
+        {fetching ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading restaurant...</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-6 md:grid-cols-2 md:items-stretch">
             {/* Left Column */}
             <div className="space-y-6 flex flex-col">
               <Card className="flex-1 flex flex-col">
                 <CardHeader>
-                  <CardTitle>Basic Information</CardTitle>
+                  <CardTitle>Restaurant Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 flex-1">
                   <div>
                     <Label htmlFor="name">
-                      Name <span className="text-destructive">*</span>
+                      Restaurant Name <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       id="name"
@@ -163,112 +343,124 @@ export default function EditRestaurantPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="latitude">
-                      Latitude <span className="text-destructive">*</span>
+                    <Label htmlFor="address">
+                      Address <span className="text-destructive">*</span>
                     </Label>
                     <Input
-                      id="latitude"
-                      type="number"
-                      step="any"
-                      value={formData.latitude}
-                      onChange={(e) => handleInputChange("latitude", e.target.value)}
+                      id="address"
+                      value={formData.address}
+                      onChange={(e) => handleInputChange("address", e.target.value)}
                       required
                       className="mt-1"
+                      placeholder="Enter address or search for location"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      You can also search by clicking on the map below
+                    </p>
                   </div>
 
                   <div>
-                    <Label>Working Hours</Label>
-                    <div className="space-y-2 mt-1">
-                      {workingHours.map((hour, index) => (
-                        <div key={index} className="flex gap-2 items-end">
-                          <div className="flex-1">
-                            <Select
-                              value={hour.day}
-                              onValueChange={(value) => updateWorkingHour(index, "day", value)}
-                            >
-                              <SelectTrigger className="focus:ring-primary">
-                                <SelectValue placeholder="Day" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="monday" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Monday</SelectItem>
-                                <SelectItem value="tuesday" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Tuesday</SelectItem>
-                                <SelectItem value="wednesday" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Wednesday</SelectItem>
-                                <SelectItem value="thursday" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Thursday</SelectItem>
-                                <SelectItem value="friday" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Friday</SelectItem>
-                                <SelectItem value="saturday" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Saturday</SelectItem>
-                                <SelectItem value="sunday" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Sunday</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <Input
-                            type="time"
-                            value={hour.open}
-                            onChange={(e) => updateWorkingHour(index, "open", e.target.value)}
-                            className="w-32"
-                            placeholder="Open"
-                          />
-                          <Input
-                            type="time"
-                            value={hour.close}
-                            onChange={(e) => updateWorkingHour(index, "close", e.target.value)}
-                            className="w-32"
-                            placeholder="Close"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeWorkingHour(index)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      <Button type="button" variant="outline" onClick={addWorkingHour} className="w-full">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add to working Hours
-                      </Button>
+                    <Label>Use location</Label>
+                    <Button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      className="w-full mt-1"
+                    >
+                      <MapPin className="h-4 w-4 mr-2" />
+                      Use my current location
+                    </Button>
+                  </div>
+
+                  <div>
+                    <Label>Pick on Map</Label>
+                    <p className="text-xs text-muted-foreground mt-1 mb-2">
+                      Click on the map or drag the marker to set your restaurant location
+                    </p>
+                    <div className="mt-1">
+                      <GoogleMapPicker
+                        lat={formData.lat ? parseFloat(formData.lat) : null}
+                        lng={formData.lng ? parseFloat(formData.lng) : null}
+                        onLocationChange={handleMapLocationChange}
+                        height="400px"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="lat">
+                        Latitude <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="lat"
+                        type="number"
+                        step="any"
+                        value={formData.lat}
+                        onChange={(e) => handleInputChange("lat", e.target.value)}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="lng">
+                        Longitude <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="lng"
+                        type="number"
+                        step="any"
+                        value={formData.lng}
+                        onChange={(e) => handleInputChange("lng", e.target.value)}
+                        required
+                        className="mt-1"
+                      />
                     </div>
                   </div>
 
                   <div>
-                    <Label htmlFor="publicPhone">
-                      Public Phone <span className="text-destructive">*</span>
-                    </Label>
+                    <Label htmlFor="publicPhone">Public Phone</Label>
                     <Input
                       id="publicPhone"
-                      type="tel"
                       value={formData.publicPhone}
                       onChange={(e) => handleInputChange("publicPhone", e.target.value)}
-                      required
                       className="mt-1"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="foodCategories">
-                      Food Categories <span className="text-destructive">*</span>
-                    </Label>
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="mt-1 focus:ring-primary">
-                        <SelectValue placeholder="Select an option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="italian" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Italian</SelectItem>
-                        <SelectItem value="mexican" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Mexican</SelectItem>
-                        <SelectItem value="asian" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">Asian</SelectItem>
-                        <SelectItem value="american" className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground">American</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="privatePhone">Private Phone</Label>
+                    <Input
+                      id="privatePhone"
+                      value={formData.privatePhone}
+                      onChange={(e) => handleInputChange("privatePhone", e.target.value)}
+                      className="mt-1"
+                    />
                   </div>
 
-                  <FileUpload
-                    value={profilePic}
-                    onChange={setProfilePic}
-                    label="Profile Picture"
-                    previewClassName="h-32 w-32 rounded-full"
-                  />
+                  <div>
+                    <Label htmlFor="ownerName">
+                      Owner Name
+                    </Label>
+                    <Input
+                      id="ownerName"
+                      value={formData.ownerName}
+                      onChange={(e) => handleInputChange("ownerName", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="ownerEmail">
+                      Owner Email
+                    </Label>
+                    <Input
+                      id="ownerEmail"
+                      type="email"
+                      value={formData.ownerEmail}
+                      onChange={(e) => handleInputChange("ownerEmail", e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
 
                   <div>
                     <Label htmlFor="status">
@@ -288,65 +480,6 @@ export default function EditRestaurantPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right Column */}
-            <div className="space-y-6 flex flex-col">
-              <Card className="flex-1 flex flex-col">
-                <CardHeader>
-                  <CardTitle>Additional Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 flex-1">
-                  <div>
-                    <Label htmlFor="address">
-                      Address <span className="text-destructive">*</span>
-                    </Label>
-                    <Textarea
-                      id="address"
-                      value={formData.address}
-                      onChange={(e) => handleInputChange("address", e.target.value)}
-                      required
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="longitude">
-                      Longitude <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="longitude"
-                      type="number"
-                      step="any"
-                      value={formData.longitude}
-                      onChange={(e) => handleInputChange("longitude", e.target.value)}
-                      required
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="privatePhone">
-                      Private Phone <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="privatePhone"
-                      type="tel"
-                      value={formData.privatePhone}
-                      onChange={(e) => handleInputChange("privatePhone", e.target.value)}
-                      required
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <FileUpload
-                    value={coverImage}
-                    onChange={setCoverImage}
-                    label="Cover Image"
-                    previewClassName="h-48"
-                  />
 
                   <div className="flex items-center justify-between p-4 rounded-lg border border-border">
                     <div>
@@ -366,20 +499,209 @@ export default function EditRestaurantPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Right Column */}
+            <div className="space-y-6 flex flex-col">
+              <Card className="flex-1 flex flex-col">
+                <CardHeader>
+                  <CardTitle>Additional Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 flex-1">
+                  <div>
+                    <Label>Working Hours</Label>
+                    <div className="mt-1 space-y-3">
+                      {formData.workingHours.map((hour, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/30"
+                        >
+                          <Select
+                            value={hour.day}
+                            onValueChange={(value) =>
+                              handleWorkingHourChange(index, "day", value)
+                            }
+                          >
+                            <SelectTrigger className="flex-1 focus:ring-primary">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {daysOfWeek.map((day) => (
+                                <SelectItem
+                                  key={day.value}
+                                  value={day.value}
+                                  className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                                >
+                                  {day.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="time"
+                            value={hour.open}
+                            onChange={(e) =>
+                              handleWorkingHourChange(index, "open", e.target.value)
+                            }
+                            className="w-32"
+                          />
+                          <Input
+                            type="time"
+                            value={hour.close}
+                            onChange={(e) =>
+                              handleWorkingHourChange(index, "close", e.target.value)
+                            }
+                            className="w-32"
+                          />
+                          {formData.workingHours.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveWorkingHour(index)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleAddWorkingHour}
+                        className="w-full"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add to working Hours
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="foodCategories">
+                      Food Categories <span className="text-destructive">*</span>
+                    </Label>
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        const id = parseInt(value);
+                        if (!formData.foodCategoryIds.includes(id)) {
+                          handleInputChange("foodCategoryIds", [...formData.foodCategoryIds, id]);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="mt-1 focus:ring-primary">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableCategories
+                          .filter(cat => !formData.foodCategoryIds.includes(Number(cat.id)))
+                          .map((category) => (
+                            <SelectItem
+                              key={category.id}
+                              value={category.id.toString()}
+                              className="focus:bg-primary focus:text-primary-foreground data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
+                            >
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    {formData.foodCategoryIds.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {formData.foodCategoryIds.map((id) => {
+                          const category = availableCategories.find((c) => Number(c.id) === Number(id));
+                          return (
+                            <div
+                              key={id}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-sm"
+                            >
+                              <span>{category?.name || `Category ${id}`}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleInputChange(
+                                    "foodCategoryIds",
+                                    formData.foodCategoryIds.filter((i) => i !== id)
+                                  );
+                                }}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label>Profile Picture</Label>
+                    <FileUpload
+                      label=""
+                      value={formData.profilePic}
+                      onChange={(file) => handleFileChange("profilePic", file)}
+                      accept="image/*"
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Place Pictures</Label>
+                    <div className="mt-1 space-y-2">
+                      {formData.placePics.map((pic, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={pic}
+                            alt={`Place ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg border border-border"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2"
+                            onClick={() => handleRemovePlacePic(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {formData.placePics.length < 5 && (
+                        <FileUpload
+                          value={null}
+                          onChange={(file) => handleFileChange("placePics", file)}
+                          accept="image/*"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Cover Image</Label>
+                    <FileUpload
+                      label=""
+                      value={formData.coverImage}
+                      onChange={(file) => handleFileChange("coverImage", file)}
+                      accept="image/*"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-4 pt-6">
-            <Button type="submit">
-              Save changes
+            <Button type="submit" disabled={loading || fetching}>
+              {loading ? "Saving..." : "Save changes"}
             </Button>
             <Button type="button" variant="outline" asChild>
-              <Link to="/admin/restaurants">Cancel</Link>
+              <Link to={`/admin/restaurants/${id}`}>Cancel</Link>
             </Button>
           </div>
-        </form>
+          </form>
+        )}
       </div>
     </DashboardLayout>
   );
 }
-

@@ -23,27 +23,16 @@ export default function NewCategoryPage() {
   
   const [formData, setFormData] = useState({
     name: "",
-    slug: "",
     image: "",
-    cover: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => {
-      const updated = { ...prev, [field]: value };
-      
-      // Auto-generate slug from name if slug is empty
-      if (field === "name" && !prev.slug) {
-        updated.slug = value.toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, '');
-      }
-      
-      return updated;
-    });
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const handleImageChange = (file: File | null) => {
@@ -59,18 +48,6 @@ export default function NewCategoryPage() {
     }
   };
 
-  const handleCoverChange = (file: File | null) => {
-    setCoverFile(file);
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, cover: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setFormData(prev => ({ ...prev, cover: "" }));
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,9 +61,7 @@ export default function NewCategoryPage() {
     try {
       const response = await adminApi.createCategory({
         name: formData.name.trim(),
-        slug: formData.slug.trim() || undefined,
-        image: formData.image || undefined,
-        cover: formData.cover || undefined,
+        image: imageFile || undefined,
       });
 
       if (response.status) {
@@ -163,33 +138,10 @@ export default function NewCategoryPage() {
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="slug">
-                      Slug
-                    </Label>
-                    <Input
-                      id="slug"
-                      value={formData.slug}
-                      onChange={(e) => handleInputChange("slug", e.target.value)}
-                      className="mt-1"
-                      placeholder="Auto-generated from name"
-                    />
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      URL-friendly version of the name (auto-generated if left empty)
-                    </p>
-                  </div>
-
                   <FileUpload
                     value={formData.image || imageFile}
                     onChange={handleImageChange}
                     label="Category Image"
-                    previewClassName="h-48"
-                  />
-
-                  <FileUpload
-                    value={formData.cover || coverFile}
-                    onChange={handleCoverChange}
-                    label="Category Cover Image (Optional)"
                     previewClassName="h-48"
                   />
                 </CardContent>
@@ -209,12 +161,6 @@ export default function NewCategoryPage() {
                         <p className="text-sm text-muted-foreground mb-1">Name</p>
                         <p className="font-semibold text-foreground">{formData.name}</p>
                       </div>
-                      {formData.slug && (
-                        <div>
-                          <p className="text-sm text-muted-foreground mb-1">Slug</p>
-                          <p className="font-mono text-sm text-foreground">{formData.slug}</p>
-                        </div>
-                      )}
                       {formData.image && (
                         <div>
                           <p className="text-sm text-muted-foreground mb-2">Image Preview</p>

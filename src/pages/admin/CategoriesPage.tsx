@@ -28,7 +28,6 @@ interface FoodCategory {
   name: string;
   slug?: string;
   image?: string;
-  cover?: string;
   dishesCount?: number;
   restaurantsCount?: number;
 }
@@ -60,6 +59,20 @@ export default function CategoriesPage() {
     category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (category.slug && category.slug.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const handleDelete = async (categoryId: number, categoryName: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${categoryName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await adminApi.deleteCategory(categoryId);
+      toast.success("Category deleted successfully");
+      fetchCategories(); // Refresh the list
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete category");
+    }
+  };
 
   return (
     <DashboardLayout portalType="admin">
@@ -120,11 +133,11 @@ export default function CategoriesPage() {
               className="group relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 animate-scale-in cursor-pointer block"
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              {/* Cover Image */}
+              {/* Category Image */}
               <div className="relative h-48 w-full overflow-hidden bg-muted">
-                {category.image || category.cover ? (
+                {category.image ? (
                   <img
-                    src={category.image || category.cover}
+                    src={category.image}
                     alt={category.name}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                   />
@@ -162,7 +175,7 @@ export default function CategoriesPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          // Handle delete
+                          handleDelete(category.id, category.name);
                         }}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
