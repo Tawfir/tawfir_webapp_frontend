@@ -24,7 +24,8 @@ import OrderViewPage from "./pages/admin/OrderViewPage";
 import CategoriesPage from "./pages/admin/CategoriesPage";
 import NewCategoryPage from "./pages/admin/NewCategoryPage";
 import EditCategoryPage from "./pages/admin/EditCategoryPage";
-import WithdrawalsPage from "./pages/admin/WithdrawalsPage";
+import RevenuePage from "./pages/admin/RevenuePage";
+import RestaurantRevenuePage from "./pages/restaurant/RevenuePage";
 import UsersPage from "./pages/admin/UsersPage";
 import SettingsPage from "./pages/admin/SettingsPage";
 
@@ -67,7 +68,7 @@ const App = () => (
           <Route path="/admin/categories" element={<CategoriesPage />} />
           <Route path="/admin/categories/new" element={<NewCategoryPage />} />
           <Route path="/admin/categories/:id/edit" element={<EditCategoryPage />} />
-          <Route path="/admin/withdrawals" element={<WithdrawalsPage />} />
+          <Route path="/admin/revenue" element={<RevenuePage />} />
           <Route path="/admin/users" element={<UsersPage />} />
           <Route path="/admin/settings" element={<SettingsPage />} />
 
@@ -80,6 +81,7 @@ const App = () => (
           <Route path="/restaurant/orders/today" element={<TodaysOrdersPage />} />
           <Route path="/restaurant/orders/:id" element={<RestaurantOrderViewPage />} />
           <Route path="/restaurant/profile" element={<RestaurantProfilePage />} />
+          <Route path="/restaurant/revenue" element={<RestaurantRevenuePage />} />
 
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />

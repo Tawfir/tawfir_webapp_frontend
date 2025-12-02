@@ -20,13 +20,6 @@ import { ArrowLeft, Utensils, Store, DollarSign, Trash2 } from "lucide-react";
 import { adminApi } from "@/services/api";
 import { toast } from "sonner";
 
-interface Dish {
-  id: number;
-  name: string;
-  price: number;
-  restaurant_name?: string;
-  image?: string;
-}
 
 interface Restaurant {
   id: number;
@@ -62,7 +55,7 @@ export default function EditCategoryPage() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [deleting, setDeleting] = useState(false);
-  const [dishes, setDishes] = useState<Dish[]>([]);
+  const [dishCount, setDishCount] = useState<number>(0);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
 
   useEffect(() => {
@@ -94,8 +87,8 @@ export default function EditCategoryPage() {
           name: category.name || "",
           image: category.image || null,
         });
-        // Set dishes and restaurants
-        setDishes(category.dishes || []);
+        // Set dish count and restaurants
+        setDishCount(category.dish_count || 0);
         setRestaurants(category.restaurants || []);
       } else {
         toast.error(response.message || "Category not found");
@@ -283,41 +276,15 @@ export default function EditCategoryPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {dishes.length > 0 ? (
-                    <div className="space-y-3">
-                      {dishes.map((dish, index) => (
-                        <div
-                          key={dish.id}
-                          className="flex items-center gap-4 p-3 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors animate-fade-in"
-                          style={{ animationDelay: `${index * 50}ms` }}
-                        >
-                          {dish.image && dish.image.trim() !== "" && !dish.image.includes('via.placeholder') && (
-                            <img
-                              src={dish.image}
-                              alt={dish.name}
-                              className="h-16 w-16 rounded-lg object-cover"
-                              onError={(e) => {
-                                // Hide image if it fails to load
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-foreground truncate">{dish.name}</p>
-                            <p className="text-sm text-muted-foreground">{dish.restaurant_name || "Unknown Restaurant"}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-foreground">${Number(dish.price).toFixed(2)}</p>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="text-center py-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+                      <Utensils className="h-8 w-8 text-primary" />
                     </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Utensils className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">No dishes in this category</p>
-                    </div>
-                  )}
+                    <p className="text-3xl font-bold text-foreground mb-2">{dishCount}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {dishCount === 1 ? 'Dish' : 'Dishes'} in this category
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
 

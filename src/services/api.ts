@@ -425,6 +425,10 @@ export const restaurantApi = {
     return api.put(`/restaurant/orders/${id}/status`, { status });
   },
 
+  updateOrderPaymentMethod: async (id: number, payment_method: 'card' | 'cash') => {
+    return api.put(`/restaurant/orders/${id}/payment-method`, { payment_method });
+  },
+
   getWalletBalance: async () => {
     return api.get('/restaurant/wallet');
   },
@@ -439,6 +443,10 @@ export const restaurantApi = {
 
   markTransactionPaid: async (id: number) => {
     return api.patch(`/restaurant/transactions/${id}/paid`);
+  },
+
+  getRevenue: async () => {
+    return api.get('/restaurant/revenue');
   },
 };
 
@@ -544,8 +552,16 @@ export const adminApi = {
     return api.get('/admin/orders');
   },
 
-  getWithdrawals: async () => {
-    return api.get('/admin/withdrawals');
+  getRevenueManagement: async () => {
+    return api.get('/admin/revenue');
+  },
+
+  payRestaurant: async (id: number) => {
+    return api.post(`/admin/revenue/pay-restaurant/${id}`);
+  },
+
+  requestPaymentFromRestaurant: async (id: number) => {
+    return api.post(`/admin/revenue/request-payment/${id}`);
   },
 
   getCategories: async () => {

@@ -10,7 +10,7 @@ import { toast } from "sonner";
 interface Order {
   id: number;
   user?: { name: string; email: string };
-  items?: Array<{ dish: { name: string }; quantity: number; price_at_order_time: number }>;
+  items?: Array<{ dish: { name: string }; quantity: number; price: number | string }>;
   total_price: number;
   status: "incoming" | "ready" | "completed" | "cancelled";
   pickup_time: string;
@@ -218,7 +218,7 @@ export default function TodaysOrdersPage() {
                                       {item.quantity}x {item.dish?.name || "Item"}
                                     </span>
                                     <span className="text-muted-foreground">
-                                      ${Number(item.price_at_order_time).toFixed(2)}
+                                      ${Number(item.price).toFixed(2)}
                                     </span>
                                   </div>
                                 ))

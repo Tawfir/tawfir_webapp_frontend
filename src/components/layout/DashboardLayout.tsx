@@ -49,7 +49,7 @@ const adminNavItems: NavItem[] = [
   { title: "Order History", href: "/admin/orders", icon: ShoppingCart },
   { title: "Restaurants", href: "/admin/restaurants", icon: Store },
   { title: "Food Categories", href: "/admin/categories", icon: Tag },
-  { title: "Withdrawal Requests", href: "/admin/withdrawals", icon: DollarSign },
+  { title: "Revenue Management", href: "/admin/revenue", icon: DollarSign },
 ];
 
 const restaurantNavSections: NavSection[] = [
@@ -71,6 +71,7 @@ const restaurantNavSections: NavSection[] = [
     title: "Restaurant Management",
     items: [
       { title: "Restaurant Profile", href: "/restaurant/profile", icon: Store },
+      { title: "Revenue Management", href: "/restaurant/revenue", icon: DollarSign },
     ],
   },
 ];
