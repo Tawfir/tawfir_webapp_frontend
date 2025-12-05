@@ -12,7 +12,8 @@ const getApiUrl = (): string => {
     return 'http://localhost:8080';
   }
   
-  return apiUrl;
+  // Remove trailing slash to avoid double slashes in URLs
+  return apiUrl.replace(/\/+$/, '');
 };
 
 export const API_CONFIG = {
@@ -32,7 +33,10 @@ export const getApiEndpoint = (endpoint: string): string => {
     ? API_CONFIG.API_PREFIX.slice(0, -1) 
     : API_CONFIG.API_PREFIX;
   
-  return `${API_CONFIG.BASE_URL}${apiPrefix}${cleanEndpoint}`;
+  // Ensure BASE_URL doesn't have trailing slash to avoid double slashes
+  const baseUrl = API_CONFIG.BASE_URL.replace(/\/+$/, '');
+  
+  return `${baseUrl}${apiPrefix}${cleanEndpoint}`;
 };
 
 /**
