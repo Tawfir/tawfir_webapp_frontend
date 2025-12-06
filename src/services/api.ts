@@ -269,6 +269,15 @@ export const authApi = {
       new_password: newPassword,
     });
   },
+
+  getMetrics: async () => {
+    return api.get<{
+      total_restaurants: number;
+      total_users: number;
+      orders_processed: number;
+      co2_saved_kg: number;
+    }>('/auth/metrics');
+  },
 };
 
 /**
