@@ -142,18 +142,6 @@ export default function LoginPage() {
           <p className="text-lg text-white/70">
             Save food and earn money doing it. All powered by intelligent AI insights and real-time tracking.
           </p>
-          <div className="mt-8 flex justify-center gap-8">
-            {[
-              { value: "500+", label: "Restaurants" },
-              { value: "50K+", label: "Orders/Day" },
-              { value: "4.9", label: "Rating" },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <p className="text-2xl font-bold text-primary">{stat.value}</p>
-                <p className="text-sm text-white/60">{stat.label}</p>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>

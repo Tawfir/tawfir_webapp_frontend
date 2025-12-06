@@ -33,6 +33,25 @@ const daysOfWeek = [
   { value: "sunday", label: "Sunday" },
 ];
 
+// Helper function to sort working hours by day of week in chronological order
+const sortWorkingHoursByDay = (hours: WorkingHour[]): WorkingHour[] => {
+  const dayOrder: Record<string, number> = {
+    monday: 0,
+    tuesday: 1,
+    wednesday: 2,
+    thursday: 3,
+    friday: 4,
+    saturday: 5,
+    sunday: 6,
+  };
+  
+  return [...hours].sort((a, b) => {
+    const orderA = dayOrder[a.day.toLowerCase()] ?? 999;
+    const orderB = dayOrder[b.day.toLowerCase()] ?? 999;
+    return orderA - orderB;
+  });
+};
+
 const statusConfig = {
   pending: { 
     label: "PENDING", 
@@ -274,7 +293,7 @@ export default function ViewRestaurantPage() {
                 <p className="text-sm font-medium text-muted-foreground mb-2">Working Hours</p>
                 {workingHours.length > 0 ? (
                   <div className="space-y-2">
-                    {workingHours.map((hour, index) => (
+                    {sortWorkingHoursByDay(workingHours).map((hour, index) => (
                       <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
                         <span className="font-medium text-foreground capitalize">{getDayLabel(hour.day)}</span>
                         <span className="text-sm text-muted-foreground">
